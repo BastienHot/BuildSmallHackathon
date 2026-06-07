@@ -1,0 +1,5 @@
+# Local orchestration only -- the heavy ML deps (vllm, unsloth/trl/peft,
+# transformers, datasets, torch) are installed INSIDE the Modal images by the
+# scripts in this folder, not on your machine.
+modal>=0.64
+huggingface_hub

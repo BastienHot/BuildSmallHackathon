@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Model weights (kept out of git; see docs/ARCHITECTURE.md)
+models/
+*.gguf
+assets/voices/*.wav
+assets/voices/*.mp3
+
+# Gradio / HF
+.gradio/
+flagged/
+gradio_cached_examples/
+
+# Local training-data inspection (regenerable from Modal; data/jsonl_viewer.html is kept)
+data/*.jsonl
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

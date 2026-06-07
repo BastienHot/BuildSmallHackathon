@@ -1,0 +1,23 @@
+name: Sync to Hugging Face Space
+
+# Mirror this GitHub repo to the HF Space on every push to main. The Space then
+# rebuilds from requirements.txt and pulls model weights at startup (see DEPLOY.md).
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # full history; Spaces rejects shallow pushes
+      - name: Push to Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}     # write token (GitHub repo secret)
+          HF_USER: ${{ vars.HF_USERNAME }}      # GitHub repo variable, e.g. BastienHot
+          HF_SPACE: ${{ vars.HF_SPACE }}        # GitHub repo variable, e.g. your-org/buzzwords
+        run: |
+          git push --force "https://$HF_USER:$HF_TOKEN@huggingface.co/spaces/$HF_SPACE.git" HEAD:main

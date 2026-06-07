@@ -1,0 +1,18 @@
+# --- Gradio app (HF Space SDK: gradio, ZeroGPU hardware) ---
+gradio==6.0.1
+
+# --- ZeroGPU GPU allocation decorator (no-op off-ZeroGPU) ---
+spaces
+
+# --- Text models via llama.cpp runtime (Llama Champion + off-grid CPU) ---
+# CPU wheels by default; for CUDA offload, install a CUDA build of llama-cpp-python.
+llama-cpp-python==0.3.26   # prebuilt CPU/CUDA wheels exist for 0.3.26 (faster Space build)
+
+# --- TTS: VoxCPM2 (PyTorch). Pinned loosely; align with the model card. ---
+torch
+# voxcpm            # uncomment once the exact package/source is confirmed
+soundfile
+numpy
+
+# --- Hub access for pulling GGUFs / LoRAs / voice refs ---
+huggingface_hub
