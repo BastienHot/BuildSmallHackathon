@@ -19,6 +19,9 @@ gradio_cached_examples/
 # Local training-data inspection (regenerable from Modal; data/jsonl_viewer.html is kept)
 data/*.jsonl
 
+# Generated agent-trace artifacts (published to the Hub, not committed)
+trace_*.json
+
 # OS / editors
 .DS_Store
 .idea/

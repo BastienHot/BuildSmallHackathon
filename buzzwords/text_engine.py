@@ -20,7 +20,10 @@ from llama_cpp import Llama, LlamaGrammar
 from . import config
 from .models import CaseFile, GMDecision, Line
 
-_STR = r'string ::= "\"" ([^"\\] | "\\" .)* "\""' + "\n" + r'ws ::= [ \t\n]*'
+# Valid-JSON string (no unescaped control chars) so json.loads never chokes on
+# grammar-valid output. Matches llama.cpp's official json.gbnf string rule.
+_STR = (r'string ::= "\"" ([^"\\\x00-\x1F\x7F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""'
+        + "\n" + r'ws ::= [ \t\n]*')
 
 # Judge scoring -> clean JSON.
 SCORE_GRAMMAR = (r"""
@@ -32,7 +35,7 @@ number ::= [0-9] | [1-9][0-9] | "100"
 # NOTE: each GBNF rule MUST be on a single line (llama.cpp ends a rule at a newline).
 CASEFILE_GRAMMAR = (r"""
 root ::= "{" ws "\"profession\":" ws string ws "," ws "\"fault_plain\":" ws string ws "," ws "\"facts\":" ws facts ws "}"
-facts ::= "[" ws string (ws "," ws string)* ws "]"
+facts ::= "[" ws string (ws "," ws string){2,4} ws "]"
 """ + _STR)
 
 # One beat from a finite deck (a small model classes well but invents poorly).
@@ -97,11 +100,15 @@ class TextEngine:
 
     # ---------------------------------------------------------- Game Master
     def casefile(self, style: str, difficulty: str) -> dict:
-        raw = self.complete(config.GM_MODEL, _CASEFILE_SYS,
-                            f"Jargon style (smokescreen, unrelated): {style}. "
-                            f"Difficulty: {difficulty}.",
-                            grammar=CASEFILE_GRAMMAR, max_tokens=400, temperature=0.9)
-        return json.loads(raw)
+        prompt = (f"Jargon style (smokescreen, unrelated): {style}. Difficulty: {difficulty}.")
+        for attempt in range(2):  # grammar guarantees valid JSON; retry once if a gen truncates
+            raw = self.complete(config.GM_MODEL, _CASEFILE_SYS, prompt,
+                                grammar=CASEFILE_GRAMMAR, max_tokens=600, temperature=0.9)
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                if attempt:
+                    raise
 
     def gm_decide(self, case_file: CaseFile, transcript: list[Line], turn: int,
                   budget: int) -> GMDecision:
