@@ -74,7 +74,8 @@ REQUIRED_MODELS = [
 # Runtime weight download (HF Spaces / fresh machines). buzzwords.weights.ensure_weights()
 # pulls these into MODELS_DIR when BW_FETCH_WEIGHTS=1 (set it as a Space variable).
 # ---------------------------------------------------------------------------
-FETCH_WEIGHTS = os.getenv("BW_FETCH_WEIGHTS", "0") == "1"
+# Auto-fetch when running on an HF Space (it sets SPACE_ID), or when asked explicitly.
+FETCH_WEIGHTS = os.getenv("BW_FETCH_WEIGHTS", "0") == "1" or bool(os.getenv("SPACE_ID"))
 HF_BASE_GGUF = ("openbmb/MiniCPM5-1B-GGUF", "MiniCPM5-1B-Q4_K_M.gguf")          # (repo, file)
 HF_GM_GGUF = ("nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF", "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf")
 HF_LORA_REPO = os.getenv("BW_LORA_REPO", "BastienHot/buzzwords-style-loras")   # the trained style LoRAs
