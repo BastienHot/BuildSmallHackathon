@@ -106,7 +106,7 @@ JARGONS = {
     "corporate": {"court": "normal_court",   "label": "Corporate", "blurb": "Boardroom buzzwords"},
     "aviation":  {"court": "aviation_court", "label": "Aviation",  "blurb": "Cockpit & control-tower lingo"},
     "ai":        {"court": "normal_court",   "label": "AI",        "blurb": "Neural-net & model-training jargon"},
-    "politics":  {"court": "normal_court",   "label": "Politics",  "blurb": "Beltway spin & campaign lingo"},
+    "politics":  {"court": "political_court", "label": "Politics",  "blurb": "Beltway spin & campaign lingo"},
     "medical":   {"court": "normal_court",   "label": "Medical",   "blurb": "Clinical & bedside jargon"},
     "gaming":    {"court": "normal_court",   "label": "Gaming",    "blurb": "Esports & gamer slang"},
     "sports":    {"court": "normal_court",   "label": "Sports",    "blurb": "Locker-room & play-by-play"},
