@@ -65,6 +65,7 @@ class GameSession:
     score: Optional[int] = None
     rationale: str = ""
     audio_dir: str = ""              # per-session temp dir for live-synth wavs
+    last_decision: Optional[GMDecision] = None   # the GM decision behind the latest line
 
     # ----- transcript / turn helpers -----
     @property

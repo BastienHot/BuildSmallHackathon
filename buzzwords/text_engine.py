@@ -23,7 +23,7 @@ from .models import CaseFile, GMDecision, Line
 # Valid-JSON string (no unescaped control chars) so json.loads never chokes on
 # grammar-valid output. Matches llama.cpp's official json.gbnf string rule.
 _STR = (r'string ::= "\"" ([^"\\\x00-\x1F\x7F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""'
-        + "\n" + r'ws ::= [ \t\n]*')
+        + "\n" + r'ws ::= [ \t]*')   # no newlines: stops the model padding output into truncation
 
 # Judge scoring -> clean JSON.
 SCORE_GRAMMAR = (r"""
@@ -112,10 +112,16 @@ class TextEngine:
 
     def gm_decide(self, case_file: CaseFile, transcript: list[Line], turn: int,
                   budget: int) -> GMDecision:
-        d = json.loads(self.complete(config.GM_MODEL, _GM_SYS,
-                                     _gm_prompt(case_file, transcript, turn, budget),
-                                     grammar=GM_DECISION_GRAMMAR, max_tokens=200,
-                                     temperature=0.7))
+        prompt = _gm_prompt(case_file, transcript, turn, budget)
+        for attempt in range(2):
+            try:
+                d = json.loads(self.complete(config.GM_MODEL, _GM_SYS, prompt,
+                                             grammar=GM_DECISION_GRAMMAR, max_tokens=320,
+                                             temperature=0.7))
+                break
+            except json.JSONDecodeError:
+                if attempt:
+                    raise
         return GMDecision(next_speaker=d["next_speaker"], beat_type=d["beat_type"],
                           stage_direction=d["stage_direction"], intensity=d["intensity"],
                           wrap_up=d["wrap_up"])
@@ -131,10 +137,17 @@ class TextEngine:
         return self.complete(spec, system, prompt, max_tokens=160, temperature=0.9).strip()
 
     def score(self, profession: str, fault_plain: str, guess: str) -> tuple[int, str]:
-        res = json.loads(self.complete(config.GM_MODEL, _SCORE_SYS,
-                                       f"True profession: {profession}\n"
-                                       f"True charge: {fault_plain}\nPlayer's guess: {guess}",
-                                       grammar=SCORE_GRAMMAR, max_tokens=200, temperature=0.3))
+        prompt = (f"True profession: {profession}\nTrue charge: {fault_plain}\n"
+                  f"Player's guess: {guess}")
+        for attempt in range(2):
+            try:
+                res = json.loads(self.complete(config.GM_MODEL, _SCORE_SYS, prompt,
+                                               grammar=SCORE_GRAMMAR, max_tokens=256,
+                                               temperature=0.3))
+                break
+            except json.JSONDecodeError:
+                if attempt:
+                    raise
         return max(0, min(100, int(res["score"]))), res["rationale"]
 
 

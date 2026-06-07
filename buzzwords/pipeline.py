@@ -64,7 +64,9 @@ def next_turn(session) -> Line | None:
                 text=_eng().act(d.next_speaker, d.stage_direction, case.jargon_style, d.intensity))
     case.lines.append(line)
     session.turn += 1
-    session.wrapped = d.wrap_up or session.turn >= budget
+    session.last_decision = d
+    floor = max(4, budget // 2)   # ignore an over-eager wrap_up; guarantee a real trial
+    session.wrapped = session.turn >= budget or (d.wrap_up and session.turn >= floor)
     return line
 
 

@@ -12,11 +12,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))  # repo root on sys.path
+
 from buzzwords import config, pipeline
-from buzzwords.models import GameSession, Line
+from buzzwords.models import GameSession
 
 CARD = """\
 ---
@@ -35,26 +38,23 @@ plus the hidden truth and the final scored guess. All inference runs locally thr
 
 
 def play_traced(style: str, difficulty: str, guess: str) -> dict:
-    eng = pipeline._eng()
     case = pipeline.new_case(style, difficulty)
     cf = case.case_file
     session = GameSession(mode="off")
     session.case = case
-    budget = cf.turn_budget
 
     turns = []
     while not session.finished_playback:
-        d = eng.gm_decide(cf, case.lines, session.turn, budget)        # the agent's decision
-        text = eng.act(d.next_speaker, d.stage_direction, style, d.intensity)
-        case.lines.append(Line(actor=d.next_speaker, beat_type=d.beat_type, text=text))
-        session.turn += 1
-        session.wrapped = d.wrap_up or session.turn >= budget
+        line = pipeline.next_turn(session)          # same loop the game uses (floor + wrap_up)
+        if line is None:
+            break
+        d = session.last_decision
         turns.append({
             "turn": session.turn,
             "gm_decision": {"next_speaker": d.next_speaker, "beat_type": d.beat_type,
                             "intensity": d.intensity, "stage_direction": d.stage_direction,
                             "wrap_up": d.wrap_up},
-            "actor_line": {"actor": d.next_speaker, "text": text},
+            "actor_line": {"actor": line.actor, "text": line.text},
         })
 
     score, rationale = pipeline.score_guess(case, guess)
