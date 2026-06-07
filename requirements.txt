@@ -1,3 +1,7 @@
+# Prebuilt llama-cpp-python wheels (CPU) so the Space build doesn't compile from source.
+# (pip applies --extra-index-url to the whole file.)
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+
 # --- Gradio app (HF Space SDK: gradio, ZeroGPU hardware) ---
 gradio==6.0.1
 
