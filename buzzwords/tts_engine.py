@@ -12,13 +12,7 @@ from typing import Optional
 
 from . import config
 
-try:
-    import spaces  # ZeroGPU; no-op decorator off-ZeroGPU
-except Exception:  # pragma: no cover
-    class _NoSpaces:
-        def GPU(self, *a, **k):
-            return lambda fn: fn
-    spaces = _NoSpaces()  # type: ignore
+import spaces  # ZeroGPU decorator; no-op on T4 / local GPU
 
 _TTS = None
 

@@ -23,13 +23,14 @@ Built for the Hugging Face **Build Small** hackathon — small models only, full
 ## How it works
 
 A **Game Master** directs a live courtroom debate; **actors** improvise in your chosen
-jargon. All text runs through the **llama.cpp** runtime (CPU).
+jargon. All text runs through the **llama.cpp** runtime, GPU-accelerated via ZeroGPU,
+HF T4, or a local CUDA GPU.
 
-- **Game Master** — *Nemotron 3 Nano 4B*, vanilla, emits GBNF-constrained JSON beats
+- **Game Master** — *Qwen3.5-4B Q4_K_M*, emits GBNF-constrained JSON beats
   (who speaks next, intensity, wrap-up). Writes a hidden **Case File** (profession +
   fault + facts) — unrelated to the jargon — and directs the turn loop, doubling as the
   scoring judge.
-- **Actors** — *MiniCPM5-1B* + **one LoRA per jargon style** (corporate, aviation, …).
+- **Actors** — *MiniCPM5-1B Q4_K_M* + **one LoRA per jargon style** (corporate, aviation, …).
   Three roles (judge / prosecutor / defense) = three system prompts on the same adapter.
   Each beat is generated *directly* in jargon from the GM's stage direction.
 - **Closure** — no deterministic latch in v1: the GM is trusted, nudged toward a verdict
@@ -43,6 +44,8 @@ The LoRA adapters are trained offline on Modal — see [`training/`](training/RE
 
 ## Run locally
 
+Requires a CUDA 12.2-compatible GPU (consumer RTX, HF T4, or ZeroGPU A10G).
+
 ```bash
 python -m venv .venv && source .venv/Scripts/activate   # Windows Git Bash
 pip install -r requirements.txt
@@ -52,8 +55,8 @@ python app.py
 The UI launches even with no weights — clicking **Start** then tells you exactly which
 GGUFs are missing. To actually play, drop them into `models/`:
 
-- `nemotron-nano-4b.Q4_K_M.gguf` — the Game Master (`GM_MODEL`)
-- `minicpm5-1b.Q4_K_M.gguf` — the actor base (`JARGON_BASE_MODEL`)
+- `Qwen3.5-4B-Q4_K_M.gguf` — the Game Master (`GM_MODEL`)
+- `MiniCPM5-1B-Q4_K_M.gguf` — the actor base (`JARGON_BASE_MODEL`)
 - `style-<style>.lora.gguf` — *optional* per-style adapters from [`training/`](training/README.md);
   until trained, actors run on the vanilla base.
 
@@ -68,7 +71,7 @@ requirements.txt        # runtime deps (gradio, llama-cpp-python, …)
 buzzwords/              # the app package
   config.py             # paths, jargon styles, turn budget, required-weights list
   models.py             # CaseFile / GMDecision / Line / Case / GameSession
-  text_engine.py        # llama.cpp: Game Master (Nemotron) + actors (MiniCPM + LoRA), GBNF
+  text_engine.py        # llama.cpp: Game Master (Qwen3.5-4B) + actors (MiniCPM5-1B + LoRA), GBNF
   pipeline.py           # case file → turn loop → scoring (+ preflight checks)
   tts_engine.py         # optional VoxCPM2 (text-only fallback)
   scene.py / ui.py / theme.py / static/   # gr.Walkthrough UI + HTML/CSS
