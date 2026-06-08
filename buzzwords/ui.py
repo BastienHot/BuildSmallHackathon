@@ -43,8 +43,15 @@ def _hearing_buttons(s: GameSession):
 _HIDE = gr.update(visible=False)
 
 
+_LOADING_MSG = ('<div class="bw-status-loading">⏳ Loading model and generating your case'
+                ' — this may take up to 30 s on first run…</div>')
+
 # ------------------------------------------------------------------ handlers
 def start_case(mode, jargon, s):
+    # Yield a loading state immediately so the user gets feedback before the
+    # slow model load + generation (can be 10-30 s on first call).
+    yield s, gr.Walkthrough(selected=CHARGES), _LOADING_MSG, "", gr.update(value=None), _HIDE, _HIDE
+
     problem = pipeline.preflight()
     if not problem:
         try:
@@ -55,11 +62,12 @@ def start_case(mode, jargon, s):
         except Exception as e:  # model present but failed to load/generate
             problem = f"Could not start the hearing:\n• {e}"
     if problem:
-        return s, gr.Walkthrough(selected=CHARGES), scene.error_card(problem), "", \
+        yield s, gr.Walkthrough(selected=CHARGES), scene.error_card(problem), "", \
             gr.update(value=None), _HIDE, _HIDE
+        return
     cont, plea = _hearing_buttons(s)
-    return (s, gr.Walkthrough(selected=HEARING), "",
-            scene.render_stage(s.case, s.current_line()), _audio(s), cont, plea)
+    yield (s, gr.Walkthrough(selected=HEARING), "",
+           scene.render_stage(s.case, s.current_line()), _audio(s), cont, plea)
 
 
 def advance(s):
