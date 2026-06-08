@@ -103,7 +103,21 @@ def _gpu_call(
     temperature: float,
 ) -> str:
     """Load model (if not cached) and run one chat-completion. GPU-context-safe."""
-    from llama_cpp import Llama, LlamaGrammar  # noqa: PLC0415 — must be inside GPU context
+    # ZeroGPU provides a virtual GPU for PyTorch but doesn't install system CUDA libs.
+    # PyTorch bundles its own libcudart.so.12; pre-loading it globally lets llama_cpp's
+    # ctypes.CDLL find it via the dynamic linker without needing a system install.
+    import ctypes, glob as _glob  # noqa: PLC0415
+    try:
+        import torch as _torch
+        _torch_lib = os.path.join(os.path.dirname(_torch.__file__), "lib")
+        for _pat in ("libcudart.so.12", "libcudart-*.so.12", "libcudart.so"):
+            _hits = _glob.glob(os.path.join(_torch_lib, _pat))
+            if _hits:
+                ctypes.CDLL(_hits[0], mode=ctypes.RTLD_GLOBAL)
+                break
+    except Exception:
+        pass  # best-effort; llama_cpp will fail loudly if CUDA still missing
+    from llama_cpp import Llama, LlamaGrammar  # noqa: PLC0415
     key = spec["key"]
     if key not in model_cache:
         # Keep at most ONE actor model resident. The 3 roles share the same base +
