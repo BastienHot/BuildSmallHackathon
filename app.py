@@ -4,6 +4,8 @@ Run locally:  python app.py
 The UI launches even without weights; it then tells you which GGUFs to add to models/.
 """
 
+import spaces  # must be first — spaces requires CUDA not yet initialized at its import time
+
 from buzzwords import config
 from buzzwords import text_engine as _te  # noqa: F401 — registers @spaces.GPU at import time
 from buzzwords.theme import get_css
