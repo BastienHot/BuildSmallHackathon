@@ -1,18 +1,16 @@
-# Prebuilt llama-cpp-python wheels (CPU) so the Space build doesn't compile from source.
-# (pip applies --extra-index-url to the whole file.)
---extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+# CUDA 12.1 wheels — targets ZeroGPU (A10G), HF T4, and consumer GPUs (RTX 20+).
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
 
 # --- Gradio app (HF Space SDK: gradio, ZeroGPU hardware) ---
 gradio==6.0.1
 
-# --- ZeroGPU GPU allocation decorator (no-op off-ZeroGPU) ---
+# --- ZeroGPU GPU allocation decorator (transparent no-op on T4 / local GPU) ---
 spaces
 
-# --- Text models via llama.cpp runtime (Llama Champion + off-grid CPU) ---
-# CPU wheels by default; for CUDA offload, install a CUDA build of llama-cpp-python.
-llama-cpp-python==0.3.26   # prebuilt CPU/CUDA wheels exist for 0.3.26 (faster Space build)
+# --- Text models via llama.cpp (CUDA 12.1 build) ---
+llama-cpp-python==0.3.26
 
-# --- TTS: VoxCPM2 (PyTorch). Pinned loosely; align with the model card. ---
+# --- TTS: VoxCPM2 (PyTorch). torch also used for CUDA detection at startup. ---
 torch
 # voxcpm            # uncomment once the exact package/source is confirmed
 soundfile
