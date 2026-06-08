@@ -5,6 +5,7 @@ The UI launches even without weights; it then tells you which GGUFs to add to mo
 """
 
 from buzzwords import config
+from buzzwords import text_engine as _te  # noqa: F401 — registers @spaces.GPU at import time
 from buzzwords.theme import get_css
 from buzzwords.ui import build_ui
 
