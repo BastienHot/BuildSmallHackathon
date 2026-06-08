@@ -63,16 +63,18 @@ ROLE_SYS = {
 }
 _ACTOR_RULES = (" English, 1-2 sentences. Follow the stage direction. Never name the "
                 "defendant's profession or state the charge in plain words.")
-# /no_think prefix suppresses Qwen3.5 chain-of-thought before JSON output.
-# The GBNF root ::= "{" also enforces this structurally, but being explicit is cleaner.
-_GM_SYS = ("/no_think You are the GAME MASTER directing a short courtroom debate. Output ONLY the "
+# /no_think is a Qwen3 (not Qwen3.5) convention; llama-cpp-python has no stable
+# chat_template_kwargs API for thinking control yet. GBNF is the real guarantee:
+# root ::= "{" means the first generated token MUST be `{`, so thinking tokens
+# (<think>…</think>) are structurally impossible for all three GM call sites.
+_GM_SYS = ("You are the GAME MASTER directing a short courtroom debate. Output ONLY the "
            "requested JSON. Never reveal the profession or charge in plain words.")
-_CASEFILE_SYS = ("/no_think Invent a hidden courtroom case. profession = the defendant's real job "
+_CASEFILE_SYS = ("Invent a hidden courtroom case. profession = the defendant's real job "
                  "(2-4 words), UNRELATED to the given jargon style. fault_plain = ONE "
                  "complete sentence stating exactly what they did wrong (a specific act, not "
                  "a single word). facts = 3-5 short oblique clues that never name the "
                  "profession in plain words.")
-_SCORE_SYS = ("/no_think Grade how well the player's guess matches the true profession and charge. "
+_SCORE_SYS = ("Grade how well the player's guess matches the true profession and charge. "
               "score 0-100, rationale one sentence.")
 
 

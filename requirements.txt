@@ -1,5 +1,6 @@
-# CUDA 12.1 wheels — targets ZeroGPU (A10G), HF T4, and consumer GPUs (RTX 20+).
---extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
+# CUDA 12.2 wheels — targets ZeroGPU (A10G), HF T4, and consumer GPUs (RTX 20+).
+# cu121 support was dropped after llama-cpp-python 0.3.26; cu122 is the minimum available.
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu122
 
 # --- Gradio app (HF Space SDK: gradio, ZeroGPU hardware) ---
 gradio==6.0.1
@@ -8,7 +9,7 @@ gradio==6.0.1
 spaces
 
 # --- Text models via llama.cpp (CUDA 12.1 build) ---
-llama-cpp-python==0.3.26
+llama-cpp-python==0.3.28
 
 # --- TTS: VoxCPM2 (PyTorch). torch also used for CUDA detection at startup. ---
 torch
