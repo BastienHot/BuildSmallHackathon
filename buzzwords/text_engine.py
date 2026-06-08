@@ -1,9 +1,17 @@
 """Text inference through llama.cpp. Real models only.
 
 Two roles:
-  * Game Master (Nemotron 4B, vanilla) -> GBNF-constrained Case File + beat decisions
-    + scoring. GBNF guarantees parseable JSON, so we never guess at malformed output.
+  * Game Master (Qwen3.5-4B, pure transformer) -> GBNF-constrained Case File + beat
+    decisions + scoring. GBNF guarantees parseable JSON; thinking mode is suppressed via
+    /no_think system prefix (GBNF's root ::= "{" also enforces this structurally).
   * Actors (MiniCPM5-1B + one per-style LoRA) -> in-character jargon lines.
+
+GPU execution path (priority order):
+  1. Local CUDA GPU   — N_GPU_LAYERS=-1 set at import; @spaces.GPU is no-op.
+  2. HF T4 persistent — same as above; GPU always present, no decorator needed.
+  3. HF ZeroGPU       — @spaces.GPU borrows an A10G for each _gpu_call invocation.
+                        Model loads inside the GPU context on first call; small models
+                        (~0.6 GB actor, ~2.7 GB GM) reload fast on A10G.
 
 The offline/demo path never reaches here (it plays hand-authored cases in pipeline.py),
 so this module assumes weights are present and fails loudly otherwise.
@@ -15,6 +23,7 @@ import gc
 import json
 import os
 
+import spaces
 from llama_cpp import Llama, LlamaGrammar
 
 from . import config
@@ -54,49 +63,81 @@ ROLE_SYS = {
 }
 _ACTOR_RULES = (" English, 1-2 sentences. Follow the stage direction. Never name the "
                 "defendant's profession or state the charge in plain words.")
-_GM_SYS = ("You are the GAME MASTER directing a short courtroom debate. Output ONLY the "
+# /no_think prefix suppresses Qwen3.5 chain-of-thought before JSON output.
+# The GBNF root ::= "{" also enforces this structurally, but being explicit is cleaner.
+_GM_SYS = ("/no_think You are the GAME MASTER directing a short courtroom debate. Output ONLY the "
            "requested JSON. Never reveal the profession or charge in plain words.")
-_CASEFILE_SYS = ("Invent a hidden courtroom case. profession = the defendant's real job "
+_CASEFILE_SYS = ("/no_think Invent a hidden courtroom case. profession = the defendant's real job "
                  "(2-4 words), UNRELATED to the given jargon style. fault_plain = ONE "
                  "complete sentence stating exactly what they did wrong (a specific act, not "
                  "a single word). facts = 3-5 short oblique clues that never name the "
                  "profession in plain words.")
-_SCORE_SYS = ("Grade how well the player's guess matches the true profession and charge. "
+_SCORE_SYS = ("/no_think Grade how well the player's guess matches the true profession and charge. "
               "score 0-100, rationale one sentence.")
 
 
+# ---------------------------------------------------------------------------
+# GPU-bound inference kernel
+# ---------------------------------------------------------------------------
+# @spaces.GPU allocates an A10G for the duration of this call on ZeroGPU.
+# On T4 / local CUDA / CPU it is a transparent no-op (the spaces package ships
+# a stub that just calls the function directly when not running on ZeroGPU).
+#
+# Model loading happens lazily inside this function so it falls within the GPU
+# context on ZeroGPU (CUDA is unavailable outside it). The model_cache dict is
+# owned by the TextEngine instance and passed by reference, so loaded models
+# persist across calls for the lifetime of the engine object.
+@spaces.GPU(duration=120)
+def _gpu_call(
+    spec: dict,
+    model_cache: dict,
+    system: str,
+    prompt: str,
+    grammar_str: str | None,
+    max_tokens: int,
+    temperature: float,
+) -> str:
+    """Load model (if not cached) and run one chat-completion. GPU-context-safe."""
+    key = spec["key"]
+    if key not in model_cache:
+        # Keep at most ONE actor model resident. The 3 roles share the same base +
+        # adapter; switching style reloads this single actor slot. GM stays alongside.
+        if key.startswith("actor-"):
+            for stale in [k for k in model_cache if k.startswith("actor-")]:
+                del model_cache[stale]
+            gc.collect()
+        model_cache[key] = Llama(
+            model_path=spec["path"],
+            n_ctx=spec.get("n_ctx", 4096),
+            n_gpu_layers=spec.get("n_gpu_layers", 0),
+            lora_path=spec.get("lora_path"),
+            verbose=False,
+        )
+    grammar_obj = LlamaGrammar.from_string(grammar_str) if grammar_str else None
+    out = model_cache[key].create_chat_completion(
+        messages=[{"role": "system", "content": system},
+                  {"role": "user", "content": prompt}],
+        max_tokens=max_tokens,
+        temperature=temperature,
+        **({'grammar': grammar_obj} if grammar_obj else {}),
+    )
+    return out["choices"][0]["message"]["content"]
+
+
+# ---------------------------------------------------------------------------
+# Public engine
+# ---------------------------------------------------------------------------
+
 class TextEngine:
-    """Loads (and keeps) the GM and one actor model. Only ever two of them."""
+    """Owns the model cache and exposes typed inference methods."""
 
     def __init__(self):
         self._models: dict[str, Llama] = {}
 
-    def _get(self, spec: dict) -> Llama:
-        key = spec["key"]
-        if key not in self._models:
-            # Keep at most ONE actor model resident. The 3 roles are the same base+adapter
-            # (only the system prompt differs); switching style reloads this single actor
-            # slot. The GM model stays loaded alongside -> memory = GM + 1 actor, never 3.
-            if key.startswith("actor-"):
-                for stale in [k for k in self._models if k.startswith("actor-")]:
-                    del self._models[stale]
-                gc.collect()
-            self._models[key] = Llama(
-                model_path=spec["path"], n_ctx=spec.get("n_ctx", 4096),
-                n_gpu_layers=spec.get("n_gpu_layers", 0),
-                lora_path=spec.get("lora_path"), verbose=False,
-            )
-        return self._models[key]
-
-    def complete(self, spec: dict, system: str, prompt: str, *, grammar: str | None = None,
-                 max_tokens: int = 256, temperature: float = 0.8) -> str:
-        kwargs = {"grammar": LlamaGrammar.from_string(grammar)} if grammar else {}
-        out = self._get(spec).create_chat_completion(
-            messages=[{"role": "system", "content": system},
-                      {"role": "user", "content": prompt}],
-            max_tokens=max_tokens, temperature=temperature, **kwargs,
-        )
-        return out["choices"][0]["message"]["content"]
+    def complete(self, spec: dict, system: str, prompt: str, *,
+                 grammar: str | None = None, max_tokens: int = 256,
+                 temperature: float = 0.8) -> str:
+        return _gpu_call(spec, self._models, system, prompt, grammar, max_tokens, temperature)
 
     # ---------------------------------------------------------- Game Master
     def casefile(self, style: str, difficulty: str) -> dict:

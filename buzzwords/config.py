@@ -25,28 +25,50 @@ VOICES_DIR = Path(os.getenv("BW_VOICES_DIR", ROOT / "assets" / "voices"))
 # (off-grid mode). TTS still works on CPU, just slowly.
 ALLOW_GPU = os.getenv("BW_ALLOW_GPU", "1") == "1"
 
+
+def _detect_gpu_layers() -> int:
+    """Return -1 (full GPU offload) if CUDA is available and allowed, else 0 (CPU)."""
+    if not ALLOW_GPU:
+        return 0
+    try:
+        import torch
+        return -1 if torch.cuda.is_available() else 0
+    except ImportError:
+        pass
+    # Fallback: check for CUDA device count via nvidia-smi env hint
+    return -1 if os.getenv("CUDA_VISIBLE_DEVICES", "") not in ("", "-1") else 0
+
+
+# Computed once at import; used by both model specs below.
+N_GPU_LAYERS = _detect_gpu_layers()
+
 # ---------------------------------------------------------------------------
 # Text models (all run through the llama.cpp runtime -> Llama Champion badge)
 #
 # Two resident models:
-#   * GM_MODEL (Nemotron 3 Nano 4B, vanilla) = Game Master: writes the hidden
+#   * GM_MODEL (Qwen3.5-4B, pure transformer) = Game Master: writes the hidden
 #     Case File, directs the turn loop (GBNF-constrained JSON), and doubles as the
-#     scoring judge. No LoRA (hybrid Mamba-2 -> kept vanilla).
+#     scoring judge. Thinking mode disabled via /no_think (GBNF also enforces this).
 #   * JARGON_BASE_MODEL (MiniCPM5-1B, Llama archi) = the 3 actors, with ONE
 #     per-style LoRA adapter loaded for the whole game (3 roles = 3 system prompts).
+#
+# GPU priority: local CUDA GPU > HF T4 persistent GPU > ZeroGPU (via @spaces.GPU
+# in text_engine.py). N_GPU_LAYERS drives all three — set to -1 when CUDA is
+# detected. For ZeroGPU the @spaces.GPU decorator allocates the GPU around each
+# inference call so -1 works there too. CUDA 12.1 wheel is in requirements.txt.
 # ---------------------------------------------------------------------------
 GM_MODEL = {
-    "key": "gm-nemotron-4b",
-    "path": str(MODELS_DIR / "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"),
+    "key": "gm-qwen3.5-4b",
+    "path": str(MODELS_DIR / "Qwen3.5-4B-Q4_K_M.gguf"),
     "n_ctx": 8192,
-    "n_gpu_layers": 0,  # CPU by default; -1 to offload (needs CUDA llama.cpp build)
+    "n_gpu_layers": N_GPU_LAYERS,
 }
 
 JARGON_BASE_MODEL = {
     "key": "minicpm-1b",
     "path": str(MODELS_DIR / "MiniCPM5-1B-Q4_K_M.gguf"),
     "n_ctx": 4096,
-    "n_gpu_layers": 0,
+    "n_gpu_layers": N_GPU_LAYERS,
 }
 
 # One LoRA per jargon STYLE (smokescreen), NOT per profession. These are PEFT
@@ -66,7 +88,7 @@ STYLE_LORAS = {
 # Weights that MUST be present to play (the style LoRAs are optional -- actors fall
 # back to the vanilla base until trained). Used by pipeline.preflight().
 REQUIRED_MODELS = [
-    ("Game Master (Nemotron 4B)", GM_MODEL["path"]),
+    ("Game Master (Qwen3.5-4B)", GM_MODEL["path"]),
     ("Actor base (MiniCPM5-1B)", JARGON_BASE_MODEL["path"]),
 ]
 
@@ -77,7 +99,7 @@ REQUIRED_MODELS = [
 # Auto-fetch when running on an HF Space (it sets SPACE_ID), or when asked explicitly.
 FETCH_WEIGHTS = os.getenv("BW_FETCH_WEIGHTS", "0") == "1" or bool(os.getenv("SPACE_ID"))
 HF_BASE_GGUF = ("openbmb/MiniCPM5-1B-GGUF", "MiniCPM5-1B-Q4_K_M.gguf")          # (repo, file)
-HF_GM_GGUF = ("nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF", "NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf")
+HF_GM_GGUF = ("unsloth/Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf")
 HF_LORA_REPO = os.getenv("BW_LORA_REPO", "BastienHot/buzzwords-style-loras")   # the trained style LoRAs
 
 # ---------------------------------------------------------------------------
