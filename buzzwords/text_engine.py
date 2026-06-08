@@ -24,10 +24,13 @@ import json
 import os
 
 import spaces
-from llama_cpp import Llama, LlamaGrammar
 
 from . import config
 from .models import CaseFile, GMDecision, Line
+
+# llama_cpp is imported lazily inside _gpu_call (which runs inside @spaces.GPU) because
+# the CUDA wheel links against libcudart.so.12 which is only available inside the GPU
+# context on ZeroGPU — importing at module level crashes the Space at startup.
 
 # Valid-JSON string (no unescaped control chars) so json.loads never chokes on
 # grammar-valid output. Matches llama.cpp's official json.gbnf string rule.
@@ -100,6 +103,7 @@ def _gpu_call(
     temperature: float,
 ) -> str:
     """Load model (if not cached) and run one chat-completion. GPU-context-safe."""
+    from llama_cpp import Llama, LlamaGrammar  # noqa: PLC0415 — must be inside GPU context
     key = spec["key"]
     if key not in model_cache:
         # Keep at most ONE actor model resident. The 3 roles share the same base +
@@ -134,7 +138,7 @@ class TextEngine:
     """Owns the model cache and exposes typed inference methods."""
 
     def __init__(self):
-        self._models: dict[str, Llama] = {}
+        self._models: dict = {}
 
     def complete(self, spec: dict, system: str, prompt: str, *,
                  grammar: str | None = None, max_tokens: int = 256,
