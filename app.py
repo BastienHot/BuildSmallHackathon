@@ -21,6 +21,8 @@ demo = build_ui()
 
 if __name__ == "__main__":
     demo.queue().launch(
+        server_name="0.0.0.0",   # Docker Space: bind the public port (HF expects 7860)
+        server_port=7860,
         css=get_css(),
         allowed_paths=[str(config.MAPS_DIR)],   # serve the courtroom backdrops
     )

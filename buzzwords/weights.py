@@ -15,7 +15,7 @@ from . import config
 def ensure_weights() -> None:
     from huggingface_hub import hf_hub_download
 
-    targets = [config.HF_BASE_GGUF, config.HF_GM_GGUF]                    # (repo, filename)
+    targets = [config.HF_BASE_GGUF, config.HF_DIRECTOR_LORA]              # (repo, filename)
     targets += [(config.HF_LORA_REPO, Path(p).name) for p in config.STYLE_LORAS.values()]
 
     config.MODELS_DIR.mkdir(parents=True, exist_ok=True)

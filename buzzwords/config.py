@@ -46,20 +46,27 @@ N_GPU_LAYERS = _detect_gpu_layers()
 # Text models (all run through the llama.cpp runtime -> Llama Champion badge)
 #
 # Two resident models:
-#   * GM_MODEL (Qwen3.5-4B, pure transformer) = Game Master: writes the hidden
+#   * GM_MODEL (MiniCPM5-1B + DIRECTOR LoRA) = Game Master: writes the hidden
 #     Case File, directs the turn loop (GBNF-constrained JSON), and doubles as the
-#     scoring judge. Thinking mode disabled via /no_think (GBNF also enforces this).
+#     scoring judge. Thinking is suppressed structurally by GBNF (root ::= "{").
 #   * JARGON_BASE_MODEL (MiniCPM5-1B, Llama archi) = the 3 actors, with ONE
 #     per-style LoRA adapter loaded for the whole game (3 roles = 3 system prompts).
+#   Same base GGUF for both; only the adapter (director vs style) differs.
 #
 # GPU priority: local CUDA GPU > HF T4 persistent GPU > ZeroGPU (via @spaces.GPU
 # in text_engine.py). N_GPU_LAYERS drives all three — set to -1 when CUDA is
 # detected. For ZeroGPU the @spaces.GPU decorator allocates the GPU around each
 # inference call so -1 works there too. CUDA 12.1 wheel is in requirements.txt.
 # ---------------------------------------------------------------------------
+# The Game Master is now MiniCPM5-1B + a single multitask DIRECTOR LoRA (replaces the old
+# Qwen3.5-4B GM): hidden Case File + GBNF-constrained beat decisions + scoring. Same base GGUF
+# as the actors — only the adapter differs — so the whole game runs on one ~1B base + two small
+# adapters. Validated on a held-out benchmark (training/director_evaluate.py).
+DIRECTOR_LORA = str(MODELS_DIR / "director.lora.gguf")
 GM_MODEL = {
-    "key": "gm-qwen3.5-4b",
-    "path": str(MODELS_DIR / "Qwen3.5-4B-Q4_K_M.gguf"),
+    "key": "gm-director",
+    "path": str(MODELS_DIR / "MiniCPM5-1B-Q4_K_M.gguf"),
+    "lora_path": DIRECTOR_LORA,
     "n_ctx": 8192,
     "n_gpu_layers": N_GPU_LAYERS,
 }
@@ -88,8 +95,8 @@ STYLE_LORAS = {
 # Weights that MUST be present to play (the style LoRAs are optional -- actors fall
 # back to the vanilla base until trained). Used by pipeline.preflight().
 REQUIRED_MODELS = [
-    ("Game Master (Qwen3.5-4B)", GM_MODEL["path"]),
-    ("Actor base (MiniCPM5-1B)", JARGON_BASE_MODEL["path"]),
+    ("Base GGUF (MiniCPM5-1B, GM + actors)", JARGON_BASE_MODEL["path"]),
+    ("Director LoRA (Game Master)", DIRECTOR_LORA),
 ]
 
 # ---------------------------------------------------------------------------
@@ -99,7 +106,8 @@ REQUIRED_MODELS = [
 # Auto-fetch when running on an HF Space (it sets SPACE_ID), or when asked explicitly.
 FETCH_WEIGHTS = os.getenv("BW_FETCH_WEIGHTS", "0") == "1" or bool(os.getenv("SPACE_ID"))
 HF_BASE_GGUF = ("openbmb/MiniCPM5-1B-GGUF", "MiniCPM5-1B-Q4_K_M.gguf")          # (repo, file)
-HF_GM_GGUF = ("unsloth/Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf")
+HF_DIRECTOR_LORA = (os.getenv("BW_DIRECTOR_REPO", "BastienHot/buzzwords-director-lora"),
+                    "director.lora.gguf")                                       # the GM director LoRA
 HF_LORA_REPO = os.getenv("BW_LORA_REPO", "BastienHot/buzzwords-style-loras")   # the trained style LoRAs
 
 # ---------------------------------------------------------------------------

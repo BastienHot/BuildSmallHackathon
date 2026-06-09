@@ -1,7 +1,8 @@
 # Training pipeline (Modal GPU, offline)
 
-Produces the actor LoRA adapters. The base MiniCPM5-1B stays **vanilla** — we ship
-adapters, never a merged base. Everything here runs on Modal, not the player's machine.
+Produces every adapter the game uses on the vanilla MiniCPM5-1B base — the eight per-style
+**actor** LoRAs and the single multitask **director** (Game Master) LoRA. We ship adapters,
+never a merged base. Everything here runs on Modal, not the player's machine.
 
 ## One-time setup
 
@@ -13,25 +14,36 @@ modal secret create huggingface HF_TOKEN=hf_xxx   # for gated model downloads
 
 ## Run order
 
+Two parallel distillations off the same Gemma teacher: the per-style **actors** and the single
+**director** (Game Master). ALWAYS smoke-test small first and eyeball the printed sample before
+scaling (`--base_seed` / `--base-seed` re-rolls the variety).
+
 ```bash
-# 1. Teacher (Gemma 4 31B-it, FP8 on L40S) generates ShareGPT data -> buzzwords-data volume
-#    Prompts are SEEDED, so a tiny run is reproducible. ALWAYS smoke-test small and
-#    eyeball the printed sample before scaling (--base_seed re-rolls the variety):
-modal run training/teacher_datagen.py --style aviation --n 5
-modal run training/teacher_datagen.py            # then the full run: legal_generic + every style
+# --- Actors (8 per-style LoRAs) -> buzzwords-data + buzzwords-adapters ---
+modal run training/teacher_datagen.py --style aviation --n 5   # smoke test
+modal run training/teacher_datagen.py                          # legal_generic + every style
+modal run training/finetune.py                                 # legal_base, then actor_<style> forks
 
-# 2. Two-stage curriculum LoRA on MiniCPM5-1B -> buzzwords-adapters volume
-modal run training/finetune.py                   # legal_base, then actor_<style> forks
+# --- Director / Game Master (1 multitask LoRA: casefile + decide + score) ---
+modal run training/director_datagen.py --task game --n 4       # smoke test (eyeball the trace)
+modal run training/director_datagen.py --n 300 --casefile-extra 600   # full mixed director.jsonl
+modal run training/director_finetune.py                        # -> "director" adapter
 
-# 3. Convert PEFT adapters -> GGUF (no merge) -> buzzwords-gguf volume
-modal run training/convert_gguf.py
-
-# 4. Pull the adapters into the app's (git-ignored) models/ dir
+# --- Convert all adapters -> GGUF (no merge) and pull into models/ ---
+modal run training/convert_gguf.py                             # style-*.lora.gguf + director.lora.gguf
 modal volume get buzzwords-gguf / ./models
 ```
 
-The app then loads `models/style-<style>.lora.gguf` on the vanilla MiniCPM base
-(see `buzzwords/config.py:STYLE_LORAS`).
+Gate the director before shipping it:
+```bash
+# generate a disjoint HELD-OUT set first, then benchmark base-vs-LoRA on its real contexts:
+modal run training/director_datagen.py --task game --n 40 --base-seed 900000
+modal run training/director_evaluate.py   # speaker balance / transitions / teacher-agreement / calibration
+modal run training/director_gate.py       # full grammar-constrained game via llama.cpp
+```
+
+The app then loads `models/MiniCPM5-1B-Q4_K_M.gguf` with `director.lora.gguf` for the GM and
+`style-<style>.lora.gguf` for the actors (see `buzzwords/config.py`).
 
 ## Design notes
 - **Quantized teacher:** Gemma 4 31B-it runs as **FP8** (`RedHatAI/gemma-4-31B-it-FP8-block`,
@@ -46,8 +58,13 @@ The app then loads `models/style-<style>.lora.gguf` on the vanilla MiniCPM base
   turn count, per-sample `seed`. Tune in `Teacher.generate`.
 - **Smokescreen jargon:** each `style_<style>.jsonl` covers *varied* hidden professions
   so the adapter learns the jargon *style*, not one case.
-- **Example shape:** one `system → user → assistant` example per line, matching the
-  runtime call (role + style + hidden brief in the system message).
+- **Example shape = runtime shape:** every example matches the exact call the app makes —
+  actors get `role+style` system / `"Stage direction: …"` user (NO hidden brief; the runtime
+  actor never sees the truth), and the director gets the casefile / decide / score shapes from
+  `buzzwords/text_engine.py`. Train/runtime mismatch is a silent quality killer.
+- **Smokescreen by construction (director):** the profession is drawn from a pool with the
+  jargon's own domain excluded, so every casefile target is provably profession-⟂-jargon;
+  few-shot sampling + a banned-word list + a corrective retry keep the leak rate near 0.
 - **Checkpoint-fork (not resume):** stage 2 loads `legal_base` as *initialization* and
   starts a fresh run — never `resume_from_checkpoint`. See `finetune.py`.
 - Model IDs (`openbmb/MiniCPM5-1B`, the AWQ teacher) are constants at the top of each

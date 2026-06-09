@@ -27,6 +27,7 @@ ADAPTERS = {
     "actor_gaming": "style-gaming.lora.gguf",
     "actor_sports": "style-sports.lora.gguf",
     "actor_scifi": "style-scifi.lora.gguf",
+    "director": "director.lora.gguf",   # the single multitask Game-Master adapter
 }
 
 app = modal.App("buzzwords-convert")

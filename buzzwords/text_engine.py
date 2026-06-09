@@ -1,10 +1,11 @@
 """Text inference through llama.cpp. Real models only.
 
 Two roles:
-  * Game Master (Qwen3.5-4B, pure transformer) -> GBNF-constrained Case File + beat
-    decisions + scoring. GBNF guarantees parseable JSON; thinking mode is suppressed via
-    /no_think system prefix (GBNF's root ::= "{" also enforces this structurally).
+  * Game Master (MiniCPM5-1B + director LoRA) -> GBNF-constrained Case File + beat
+    decisions + scoring. GBNF guarantees parseable JSON and structurally suppresses
+    thinking (root ::= "{" forces the first generated token).
   * Actors (MiniCPM5-1B + one per-style LoRA) -> in-character jargon lines.
+    Same base GGUF for both; only the LoRA differs (director vs style).
 
 GPU execution path (priority order):
   1. Local CUDA GPU   — N_GPU_LAYERS=-1 set at import; @spaces.GPU is no-op.
@@ -66,17 +67,17 @@ ROLE_SYS = {
 }
 _ACTOR_RULES = (" English, 1-2 sentences. Follow the stage direction. Never name the "
                 "defendant's profession or state the charge in plain words.")
-# /no_think is a Qwen3 (not Qwen3.5) convention; llama-cpp-python has no stable
-# chat_template_kwargs API for thinking control yet. GBNF is the real guarantee:
-# root ::= "{" means the first generated token MUST be `{`, so thinking tokens
-# (<think>…</think>) are structurally impossible for all three GM call sites.
+# The GM runs MiniCPM5-1B (hybrid reasoning), but we don't need its enable_thinking toggle:
+# GBNF is the real guarantee — root ::= "{" forces the first generated token to be `{`, so
+# thinking tokens (<|thought_begin|>…) are structurally impossible for all three GM call sites.
 _GM_SYS = ("You are the GAME MASTER directing a short courtroom debate. Output ONLY the "
            "requested JSON. Never reveal the profession or charge in plain words.")
 _CASEFILE_SYS = ("Invent a hidden courtroom case. profession = the defendant's real job "
-                 "(2-4 words), UNRELATED to the given jargon style. fault_plain = ONE "
-                 "complete sentence stating exactly what they did wrong (a specific act, not "
-                 "a single word). facts = 3-5 short oblique clues that never name the "
-                 "profession in plain words.")
+                 "(2-4 words), UNRELATED to the given jargon style. fault_plain = a VERB "
+                 "PHRASE completing \"The defendant ___\" (a specific wrongful act, e.g. "
+                 "\"falsified an inspection log to hide a missed check\"); do NOT write a full "
+                 "sentence and do NOT repeat \"the defendant\". facts = 3-5 short oblique clues "
+                 "that never name the profession in plain words.")
 _SCORE_SYS = ("Grade how well the player's guess matches the true profession and charge. "
               "score 0-100, rationale one sentence.")
 

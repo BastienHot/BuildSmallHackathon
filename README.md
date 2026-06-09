@@ -3,10 +3,8 @@ title: Buzzwords & Misdemeanors
 emoji: ⚖️
 colorFrom: indigo
 colorTo: red
-sdk: gradio
-sdk_version: 6.0.1
-app_file: app.py
-python_version: 3.12.12
+sdk: docker
+app_port: 7860
 pinned: false
 ---
 
@@ -23,13 +21,13 @@ Built for the Hugging Face **Build Small** hackathon — small models only, full
 ## How it works
 
 A **Game Master** directs a live courtroom debate; **actors** improvise in your chosen
-jargon. All text runs through the **llama.cpp** runtime, GPU-accelerated via ZeroGPU,
-HF T4, or a local CUDA GPU.
+jargon. All text runs through the **llama.cpp** runtime on **CPU** (compiled with AVX2),
+so the whole game runs on a free **cpu-basic** Space — no GPU.
 
-- **Game Master** — *Qwen3.5-4B Q4_K_M*, emits GBNF-constrained JSON beats
-  (who speaks next, intensity, wrap-up). Writes a hidden **Case File** (profession +
+- **Game Master** — *MiniCPM5-1B + a distilled **director** LoRA*, emits GBNF-constrained
+  JSON beats (who speaks next, intensity, wrap-up). Writes a hidden **Case File** (profession +
   fault + facts) — unrelated to the jargon — and directs the turn loop, doubling as the
-  scoring judge.
+  scoring judge. Same 1B base as the actors; only the adapter differs.
 - **Actors** — *MiniCPM5-1B Q4_K_M* + **one LoRA per jargon style** (corporate, aviation, …).
   Three roles (judge / prosecutor / defense) = three system prompts on the same adapter.
   Each beat is generated *directly* in jargon from the GM's stage direction.
@@ -44,20 +42,21 @@ The LoRA adapters are trained offline on Modal — see [`training/`](training/RE
 
 ## Run locally
 
-Requires a CUDA 12.2-compatible GPU (consumer RTX, HF T4, or ZeroGPU A10G).
+CPU-only — no GPU required (llama.cpp). For the fast AVX2 build, compile llama-cpp-python
+from source (as the Dockerfile does); a plain `pip install` grabs an un-vectorized wheel.
 
 ```bash
 python -m venv .venv && source .venv/Scripts/activate   # Windows Git Bash
-pip install -r requirements.txt
+CMAKE_ARGS="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON" pip install --no-binary llama-cpp-python -r requirements.txt
 python app.py
 ```
 
 The UI launches even with no weights — clicking **Start** then tells you exactly which
 GGUFs are missing. To actually play, drop them into `models/`:
 
-- `Qwen3.5-4B-Q4_K_M.gguf` — the Game Master (`GM_MODEL`)
-- `MiniCPM5-1B-Q4_K_M.gguf` — the actor base (`JARGON_BASE_MODEL`)
-- `style-<style>.lora.gguf` — *optional* per-style adapters from [`training/`](training/README.md);
+- `MiniCPM5-1B-Q4_K_M.gguf` — the shared base (Game Master **and** actors)
+- `director.lora.gguf` — the Game Master adapter (`DIRECTOR_LORA`)
+- `style-<style>.lora.gguf` — *optional* per-style actor adapters from [`training/`](training/README.md);
   until trained, actors run on the vanilla base.
 
 Paths live in `buzzwords/config.py`. On HF Spaces, set `BW_FETCH_WEIGHTS=1` to auto-pull

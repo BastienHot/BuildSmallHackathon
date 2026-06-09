@@ -30,10 +30,11 @@ tags: [agent-trace, llama-cpp, courtroom-game]
 # Buzzwords & Misdemeanors -- agent traces
 
 Each JSON is one full game of [Buzzwords & Misdemeanors](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors).
-A **Game Master** (Nemotron 3 Nano 4B, GBNF-constrained) writes a hidden Case File and then,
-turn by turn, decides who speaks and how; the **actors** (MiniCPM5-1B + a per-style LoRA) deliver
-the lines. The trace records the GM's structured decision and the resulting line for every turn,
-plus the hidden truth and the final scored guess. All inference runs locally through `llama.cpp`.
+A **Game Master** (MiniCPM5-1B + a distilled *director* LoRA, GBNF-constrained) writes a hidden
+Case File and then, turn by turn, decides who speaks and how; the **actors** (the same MiniCPM5-1B
+base + a per-style LoRA) deliver the lines. The trace records the GM's structured decision and the
+resulting line for every turn, plus the hidden truth and the final scored guess. All inference runs
+locally through `llama.cpp` — the whole game on one ~1B base + two small adapters.
 """
 
 
@@ -63,7 +64,7 @@ def play_traced(style: str, difficulty: str, guess: str) -> dict:
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "jargon_style": style,
         "difficulty": difficulty,
-        "models": {"game_master": Path(config.GM_MODEL["path"]).name,
+        "models": {"game_master": f"{Path(config.GM_MODEL['path']).name} + director LoRA",
                    "actors": f"{Path(config.JARGON_BASE_MODEL['path']).name} + style-{style} LoRA"},
         "hidden_case_file": {"profession": cf.profession, "fault_plain": cf.fault_plain,
                              "facts": cf.facts},

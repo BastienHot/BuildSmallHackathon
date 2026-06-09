@@ -1,0 +1,10 @@
+# keep the image lean — only the runtime app + assets are needed inside the container
+.git
+.github
+training
+docs
+models
+data
+**/__pycache__
+*.pyc
+_*

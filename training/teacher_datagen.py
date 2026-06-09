@@ -68,6 +68,27 @@ DISPOSITIONS = ["defiant", "remorseful", "oblivious and confused", "smug and eva
 TEACHER_SYS = ("You are a comedy-legal scriptwriter producing VARIED courtroom training "
                "transcripts. Output strictly valid JSON and nothing else.")
 
+# Actor system prompt — MUST match buzzwords/text_engine.py:ROLE_SYS + _ACTOR_RULES so the
+# training examples have the SAME shape the actor sees at runtime (act(): role+style system,
+# "Stage direction: …\nIntensity: …/5" user). Earlier the example put the hidden brief in the
+# system prompt and the previous line as the user turn — neither matches runtime.
+ROLE_SYS = {
+    "judge": "You are the JUDGE. Speak with calm authority in dense {style} jargon.",
+    "prosecutor": "You are the PROSECUTOR. Press the case hard in dense {style} jargon.",
+    "defense": "You are the DEFENSE counsel. Deflect and reframe in dense {style} jargon.",
+}
+_GENERIC_SYS = {  # stage-1 (legal_generic, style="") keeps the runtime FORMAT, no jargon
+    "judge": "You are the JUDGE. Speak with calm authority in plain professional English.",
+    "prosecutor": "You are the PROSECUTOR. Press the case hard in plain professional English.",
+    "defense": "You are the DEFENSE counsel. Deflect and reframe in plain professional English.",
+}
+_ACTOR_RULES = (" English, 1-2 sentences. Follow the stage direction. Never name the "
+                "defendant's profession or state the charge in plain words.")
+
+
+def _actor_system(role: str, style: str) -> str:
+    return (ROLE_SYS[role].format(style=style) if style else _GENERIC_SYS[role]) + _ACTOR_RULES
+
 app = modal.App("buzzwords-teacher")
 # Install vllm UNPINNED so it pulls a mutually-compatible torch + transformers.
 # (Pinning an old vllm but a new transformers breaks on torch.float8_e8m0fnu, and an
@@ -121,7 +142,12 @@ def _build_prompt(style: str, spec: dict) -> str:
            f"use all of them, do NOT just list them): {', '.join(spec['terms'])}.\n"
            if spec.get("terms") else "")
         + f"Argue entirely AROUND the charge -- allude to it, never name the profession or "
-        f'the fault outright. Return ONLY a JSON list of {{"role": ..., "text": ...}}.'
+        f"the fault outright. For EACH line also give the oblique stage_direction a director "
+        f"would have handed the actor (a short cue"
+        + (f" in {style} terms" if style else "")
+        + f" that hints at the beat but NEVER names the job or charge) and an intensity 1-5.\n"
+        f'Return ONLY a JSON list of {{"role": "judge|prosecutor|defense", "intensity": 3, '
+        f'"stage_direction": "<oblique cue>", "text": "<the in-character line>"}}.'
     )
 
 
@@ -167,23 +193,21 @@ def _parse(text: str) -> list | None:
 
 
 def _to_examples(role_lines: list[dict], style: str, spec: dict) -> list[dict]:
-    """One training example per line, matching the runtime call shape
-    (system = role + style + hidden brief; user = the cue; assistant = the line)."""
-    style_clause = f"dense {style} jargon" if style else "plain professional English"
+    """One training example per line, in the EXACT runtime call shape (text_engine.act):
+    system = role + style rules (NO hidden brief), user = "Stage direction: …\nIntensity: …/5",
+    assistant = the line. The actor never sees the profession/fault at runtime, so it must not
+    see them in training either."""
     examples = []
-    for i, ln in enumerate(role_lines):
+    for ln in role_lines:
         role = (ln.get("role") or "judge").lower()
         line = (ln.get("text") or "").strip()
         if not line or role not in ("judge", "prosecutor", "defense"):
             continue
-        system = (f"You are the {role.upper()} in a courtroom. Speak in {style_clause}, "
-                  f"1-2 sentences. Never name the defendant's profession or state the "
-                  f"charge in plain words. Hidden brief: {_article(spec['profession'])} "
-                  f"{spec['profession']} who {spec['fault']}.")
-        cue = (role_lines[i - 1].get("text", "").strip() if i > 0 else "") or "Open the hearing."
+        sd = str(ln.get("stage_direction", "")).strip() or "Open the hearing."
+        intensity = ln.get("intensity") if ln.get("intensity") in (1, 2, 3, 4, 5) else 3
         examples.append({"conversations": [
-            {"role": "system", "content": system},
-            {"role": "user", "content": cue},
+            {"role": "system", "content": _actor_system(role, style)},
+            {"role": "user", "content": f"Stage direction: {sd}\nIntensity: {intensity}/5."},
             {"role": "assistant", "content": line},
         ]})
     return examples
@@ -201,7 +225,9 @@ def _reject_reason(role_lines, spec: dict) -> str | None:
         return "not a list"
     if not (4 <= len(role_lines) <= 14):
         return f"turn count {len(role_lines)} outside 4..14"
-    blob = " ".join(l.get("text", "") for l in role_lines if isinstance(l, dict)).lower()
+    # include stage_directions in the leak check (the actor now sees them at runtime)
+    blob = " ".join((l.get("stage_direction", "") + " " + l.get("text", ""))
+                    for l in role_lines if isinstance(l, dict)).lower()
     if len(blob) < 200:
         return f"too short ({len(blob)} chars)"
     if spec["profession"].lower() in blob:

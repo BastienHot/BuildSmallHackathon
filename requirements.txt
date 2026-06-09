@@ -1,21 +1,21 @@
-# CUDA 12.2 wheels — targets ZeroGPU (A10G), HF T4, and consumer GPUs (RTX 20+).
-# cu121 support was dropped after llama-cpp-python 0.3.26; cu122 is the minimum available.
---extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu122
+# CPU deploy (Docker Space). llama-cpp-python is built from SOURCE with AVX2 by the
+# Dockerfile (ENV CMAKE_ARGS + `pip --no-binary llama-cpp-python`) — the prebuilt CPU
+# wheels are un-vectorized (~2 tok/s prefill); AVX2 gives ~60-80 prefill / ~12 decode on
+# cpu-basic, which keeps the all-1B game playable. No GPU / CUDA wheel index needed.
 
-# --- Gradio app (HF Space SDK: gradio, ZeroGPU hardware) ---
+# --- Gradio app (launched by our own CMD inside the Docker Space) ---
 gradio==6.0.1
 
-# --- ZeroGPU GPU allocation decorator (transparent no-op on T4 / local GPU) ---
+# --- ZeroGPU decorator: a transparent no-op on CPU (kept so the app code is unchanged) ---
 spaces
 
-# --- Text models via llama.cpp (CUDA 12.1 build) ---
+# --- Text models via llama.cpp (compiled AVX2 from source by the Dockerfile) ---
 llama-cpp-python==0.3.28
 
-# --- TTS: VoxCPM2 (PyTorch). torch also used for CUDA detection at startup. ---
-torch
-# voxcpm            # uncomment once the exact package/source is confirmed
+# --- Hub access for pulling the base GGUF + director/style LoRAs at startup ---
+huggingface_hub
+
+# --- TTS deps (optional; VoxCPM is GPU-bound and disabled on the CPU deploy). torch is NOT
+#     installed here — config/tts/text_engine all import it lazily with a graceful fallback. ---
 soundfile
 numpy
-
-# --- Hub access for pulling GGUFs / LoRAs / voice refs ---
-huggingface_hub

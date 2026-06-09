@@ -27,6 +27,22 @@ Langue du jeu : **anglais**.
 >    convert_gguf). `pip install modal` puis `modal token new`.
 > 4. **TTS conservé en option** (hors chemin critique, fallback texte).
 
+> ### 📌 Statut final (v2) — architecture livrée (prime sur tout le texte historique ci-dessous)
+> 1. **Un seul modèle 1B pour tout le jeu.** Le Game Master n'est plus un 4B séparé : c'est
+>    **MiniCPM5-1B + un LoRA « director »** (multitâche : Case File + décisions de tour + scoring,
+>    sous grammaire GBNF). Les acteurs = le même base + un LoRA **par style**. Tout le jeu =
+>    un base ~1B + deux adaptateurs ~90 Mo, échangés par référence.
+> 2. **Pourquoi le 4B a été abandonné :** ~1 tok/s sur un CPU 2 vCPU (≈4 min/décision) — non
+>    viable. Le rôle du directeur a été **distillé** dans le 1B (teacher Gemma 4 31B sur Modal,
+>    `training/director_*.py`).
+> 3. **100 % CPU, sans GPU.** Déploiement en **Docker Space** (`cpu-basic`, 2 vCPU) — Docker sert
+>    uniquement à compiler `llama-cpp-python` en **AVX2** (sinon ~2 tok/s). No-think imposé par la
+>    grammaire (`root ::= "{"`) ; cache de préfixe KV pour la boucle de tours.
+> 4. **Évaluation in-distribution.** Le directeur est benchmarké sur des contextes **held-out**
+>    réels du teacher (jamais des stubs ni une seule trajectoire greedy) —
+>    `training/director_evaluate.py` / `director_gate.py`. Récit complet et leçons :
+>    [`docs/FIELD_NOTES.md`](FIELD_NOTES.md).
+
 ---
 
 ## 2. Vue d'ensemble
