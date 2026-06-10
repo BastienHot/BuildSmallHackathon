@@ -132,11 +132,16 @@ def _gpu_call(
             for stale in [k for k in model_cache if k.startswith("actor-")]:
                 del model_cache[stale]
             gc.collect()
+        # Runtime LoRA defeats the AVX2 CPU_REPACK fast path (every adapted matmul falls back
+        # to un-vectorized CPU). BW_DISABLE_LORA loads the vanilla base to measure that cost.
+        lora_path = None if config.DISABLE_LORA else spec.get("lora_path")
+        if config.DISABLE_LORA and spec.get("lora_path"):
+            log.warning("BW_DISABLE_LORA set: loading %s WITHOUT its LoRA adapter (base only).", key)
         model_cache[key] = Llama(
             model_path=spec["path"],
             n_ctx=spec.get("n_ctx", 4096),
             n_gpu_layers=spec.get("n_gpu_layers", 0),
-            lora_path=spec.get("lora_path"),
+            lora_path=lora_path,
             verbose=config.LLAMA_VERBOSE,
         )
     grammar_obj = LlamaGrammar.from_string(grammar_str) if grammar_str else None

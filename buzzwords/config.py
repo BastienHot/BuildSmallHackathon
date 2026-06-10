@@ -30,6 +30,13 @@ ALLOW_GPU = os.getenv("BW_ALLOW_GPU", "1") == "1"
 # ACTUALLY evaluated (a cache hit shows a small N; a full re-prefill shows the whole prompt).
 LLAMA_VERBOSE = os.getenv("BW_LLAMA_VERBOSE", "0") == "1"
 
+# Debug/measurement: load the models WITHOUT their LoRA adapter. Runtime LoRA forces every
+# adapted matmul off the AVX2 'CPU_REPACK' fast path (see the llama_adapter_lora_init_impl
+# 'fallback to CPU' warnings), which is the dominant CPU cost. Flip this to A/B the decode
+# speed base-vs-LoRA; if base-only is several times faster, merge the adapters into the base
+# (no runtime LoRA) is the real fix. NOTE: with LoRA off, the GM/actors run the vanilla base.
+DISABLE_LORA = os.getenv("BW_DISABLE_LORA", "0") == "1"
+
 
 def _detect_gpu_layers() -> int:
     """Return -1 (full GPU offload) if CUDA is available and allowed, else 0 (CPU)."""
