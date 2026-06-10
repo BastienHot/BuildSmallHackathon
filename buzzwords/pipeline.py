@@ -55,8 +55,9 @@ def new_case(jargon_style: str, difficulty: str) -> Case:
 # --------------------------------------------------------------------- turn loop
 def next_turn(session) -> Line | None:
     """Generate one beat (GM decision + actor line). Returns the new Line, or None if
-    generation has reached closure. Retries a beat that throws (a fresh KV-cache reset
-    clears any transient runtime state) so one bad sample doesn't abort the whole game."""
+    generation has reached closure. If a beat throws, drop the engine into safe mode (no
+    KV-cache prefix reuse) and retry, so one bad sample doesn't abort the whole game and
+    the rest of the session stays stable — while the fault-free path keeps its cache."""
     case = session.case
     if case is None or session.finished_playback:
         return None
@@ -69,7 +70,7 @@ def next_turn(session) -> Line | None:
             break
         except Exception as e:   # noqa: BLE001 — retry any runtime/sampling failure
             last_err = e
-            _eng().reset_contexts()
+            _eng().enable_safe_mode()
     else:
         raise last_err  # all retries exhausted — surface to the caller
 
