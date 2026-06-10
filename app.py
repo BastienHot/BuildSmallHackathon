@@ -6,6 +6,17 @@ The UI launches even without weights; it then tells you which GGUFs to add to mo
 
 import spaces  # must be first — spaces requires CUDA not yet initialized at its import time
 
+import logging
+
+# Log to stdout so HF Spaces' Container logs capture it. INFO surfaces the pre-generation
+# progress and safe-mode transitions; full tracebacks (incl. llama_cpp frames) are logged on
+# any beat failure — that's what to grab from the Container logs when debugging a crash.
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+    force=True,   # override any handler a dependency installed at import time
+)
+
 from buzzwords import config
 from buzzwords import text_engine as _te  # noqa: F401 — registers @spaces.GPU at import time
 from buzzwords.theme import get_css

@@ -14,10 +14,13 @@ clear message instead of crashing.
 from __future__ import annotations
 
 import importlib.util
+import logging
 import os
 
 from . import config
 from .models import Case, CaseFile, Line
+
+log = logging.getLogger(__name__)
 
 _engine = None  # lazily created so the app still launches (to show preflight) with no llama.cpp
 
@@ -54,14 +57,37 @@ def new_case(jargon_style: str, difficulty: str) -> Case:
 
 # --------------------------------------------------------------------- turn loop
 def next_turn(session) -> Line | None:
-    """Advance one beat. Returns the new Line, or None if the debate is over."""
+    """Generate one beat (GM decision + actor line). Returns the new Line, or None if
+    generation has reached closure. If a beat throws, drop the engine into safe mode (no
+    KV-cache prefix reuse) and retry, so one bad sample doesn't abort the whole game and
+    the rest of the session stays stable — while the fault-free path keeps its cache."""
     case = session.case
     if case is None or session.finished_playback:
         return None
     budget = case.case_file.turn_budget
-    d = _eng().gm_decide(case.case_file, case.lines, session.turn, budget)
-    line = Line(actor=d.next_speaker, beat_type=d.beat_type,
-                text=_eng().act(d.next_speaker, d.stage_direction, case.jargon_style, d.intensity))
+    last_err: Exception | None = None
+    attempts = 3
+    for attempt in range(attempts):
+        try:
+            d = _eng().gm_decide(case.case_file, case.lines, session.turn, budget)
+            text = _eng().act(d.next_speaker, d.stage_direction, case.jargon_style, d.intensity)
+            break
+        except Exception as e:   # noqa: BLE001 — retry any runtime/sampling failure
+            last_err = e
+            # log.exception emits the FULL traceback (incl. the llama_cpp file/line that
+            # raised) — this is exactly what to read from the Container logs after a crash.
+            log.exception(
+                "Beat generation failed: turn %d/%d, style=%s, attempt %d/%d, lines_so_far=%d",
+                session.turn + 1, budget, case.jargon_style, attempt + 1, attempts,
+                len(case.lines),
+            )
+            _eng().enable_safe_mode()
+    else:
+        log.error("Beat %d aborted after %d attempts — giving up (%s: %s)",
+                  session.turn + 1, attempts, type(last_err).__name__, last_err)
+        raise last_err  # all retries exhausted — surface to the caller
+
+    line = Line(actor=d.next_speaker, beat_type=d.beat_type, text=text)
     case.lines.append(line)
     session.turn += 1
     session.last_decision = d
