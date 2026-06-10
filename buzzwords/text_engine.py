@@ -24,6 +24,7 @@ import gc
 import json
 import logging
 import os
+import time
 
 import spaces
 
@@ -136,7 +137,7 @@ def _gpu_call(
             n_ctx=spec.get("n_ctx", 4096),
             n_gpu_layers=spec.get("n_gpu_layers", 0),
             lora_path=spec.get("lora_path"),
-            verbose=False,
+            verbose=config.LLAMA_VERBOSE,
         )
     grammar_obj = LlamaGrammar.from_string(grammar_str) if grammar_str else None
     # By default we KEEP llama-cpp-python's prompt-cache reuse: it skips re-evaluating the
@@ -144,15 +145,28 @@ def _gpu_call(
     # prefill cost on CPU. Only in safe mode (engaged after a runtime fault — that reuse
     # path can raise "index N out of bounds ..." on some models) do we reset first to force
     # a clean full prefill. So the fast path stays fast; we slow down only if forced to.
+    llm = model_cache[key]
+    # kv_before = tokens left in the KV cache from this model's PREVIOUS call. If it's >0
+    # (and reset_first is False), llama-cpp-python can reuse the shared prompt prefix —
+    # i.e. the cache is live. If it's 0 every call, no reuse is possible and prefill is
+    # paid in full each time. This is the definitive "is the cache working?" signal.
+    kv_before = int(getattr(llm, "n_tokens", 0))
     if reset_first:
-        model_cache[key].reset()
-    out = model_cache[key].create_chat_completion(
+        llm.reset()
+    t0 = time.perf_counter()
+    out = llm.create_chat_completion(
         messages=[{"role": "system", "content": system},
                   {"role": "user", "content": prompt}],
         max_tokens=max_tokens,
         temperature=temperature,
         **({'grammar': grammar_obj} if grammar_obj else {}),
     )
+    dt = time.perf_counter() - t0
+    usage = out.get("usage") or {}
+    ptok, ctok = usage.get("prompt_tokens", -1), usage.get("completion_tokens", -1)
+    gen_rate = (ctok / dt) if (dt > 0 and isinstance(ctok, int) and ctok > 0) else 0.0
+    log.info("[gen] key=%s reset_first=%s kv_before=%d prompt_tok=%s gen_tok=%s wall=%.2fs gen=%.1f tok/s",
+             key, reset_first, kv_before, ptok, ctok, dt, gen_rate)
     return out["choices"][0]["message"]["content"]
 
 

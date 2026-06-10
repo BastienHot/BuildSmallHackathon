@@ -25,6 +25,11 @@ VOICES_DIR = Path(os.getenv("BW_VOICES_DIR", ROOT / "assets" / "voices"))
 # (off-grid mode). TTS still works on CPU, just slowly.
 ALLOW_GPU = os.getenv("BW_ALLOW_GPU", "1") == "1"
 
+# Debug: when set, build the llama.cpp models with verbose=True so llama.cpp prints its
+# native "prompt eval time = ... / N tokens" line — N is the number of prompt tokens it
+# ACTUALLY evaluated (a cache hit shows a small N; a full re-prefill shows the whole prompt).
+LLAMA_VERBOSE = os.getenv("BW_LLAMA_VERBOSE", "0") == "1"
+
 
 def _detect_gpu_layers() -> int:
     """Return -1 (full GPU offload) if CUDA is available and allowed, else 0 (CPU)."""
