@@ -135,6 +135,12 @@ def _gpu_call(
             verbose=False,
         )
     grammar_obj = LlamaGrammar.from_string(grammar_str) if grammar_str else None
+    # Clear the KV cache before every completion. llama-cpp-python otherwise reuses the
+    # eval'd prefix of the PREVIOUS call when the new prompt shares a leading prefix (our
+    # system prompts are identical across beats) — and that prefix-reuse path can raise
+    # "index N is out of bounds for axis 0 with size M" mid-game. A fresh reset re-prefills
+    # each call (cheap, and hidden behind the pre-generation progress bar) and is correct.
+    model_cache[key].reset()
     out = model_cache[key].create_chat_completion(
         messages=[{"role": "system", "content": system},
                   {"role": "user", "content": prompt}],
@@ -159,6 +165,14 @@ class TextEngine:
                  grammar: str | None = None, max_tokens: int = 256,
                  temperature: float = 0.8) -> str:
         return _gpu_call(spec, self._models, system, prompt, grammar, max_tokens, temperature)
+
+    def reset_contexts(self) -> None:
+        """Clear every resident model's KV cache (used to recover after a failed beat)."""
+        for model in self._models.values():
+            try:
+                model.reset()
+            except Exception:
+                pass
 
     # ---------------------------------------------------------- Game Master
     def casefile(self, style: str, difficulty: str) -> dict:

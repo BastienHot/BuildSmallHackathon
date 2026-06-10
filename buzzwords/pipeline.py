@@ -54,14 +54,26 @@ def new_case(jargon_style: str, difficulty: str) -> Case:
 
 # --------------------------------------------------------------------- turn loop
 def next_turn(session) -> Line | None:
-    """Advance one beat. Returns the new Line, or None if the debate is over."""
+    """Generate one beat (GM decision + actor line). Returns the new Line, or None if
+    generation has reached closure. Retries a beat that throws (a fresh KV-cache reset
+    clears any transient runtime state) so one bad sample doesn't abort the whole game."""
     case = session.case
     if case is None or session.finished_playback:
         return None
     budget = case.case_file.turn_budget
-    d = _eng().gm_decide(case.case_file, case.lines, session.turn, budget)
-    line = Line(actor=d.next_speaker, beat_type=d.beat_type,
-                text=_eng().act(d.next_speaker, d.stage_direction, case.jargon_style, d.intensity))
+    last_err: Exception | None = None
+    for attempt in range(3):
+        try:
+            d = _eng().gm_decide(case.case_file, case.lines, session.turn, budget)
+            text = _eng().act(d.next_speaker, d.stage_direction, case.jargon_style, d.intensity)
+            break
+        except Exception as e:   # noqa: BLE001 — retry any runtime/sampling failure
+            last_err = e
+            _eng().reset_contexts()
+    else:
+        raise last_err  # all retries exhausted — surface to the caller
+
+    line = Line(actor=d.next_speaker, beat_type=d.beat_type, text=text)
     case.lines.append(line)
     session.turn += 1
     session.last_decision = d

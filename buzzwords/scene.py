@@ -59,6 +59,24 @@ def title_card(bg_url: str) -> str:
     )
 
 
+def loading_card(frac: float, desc: str) -> str:
+    """Full-bleed 'preparing your hearing' card with a labelled progress bar.
+
+    Shown while the whole game is pre-generated up front, so the player only ever
+    clicks through finished beats (no waiting mid-hearing)."""
+    pct = max(0, min(100, round(frac * 100)))
+    return (
+        '<div class="hero loading" style="min-height:240px"><div class="hero-content">'
+        '<div class="hero-emblem spin">⚖</div>'
+        '<h1>Preparing your hearing</h1>'
+        f'<p class="load-desc">{html.escape(desc)}</p>'
+        '<div class="loadbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" '
+        f'aria-valuenow="{pct}"><div class="loadbar-fill" style="width:{pct}%"></div></div>'
+        f'<div class="loadpct">{pct}%</div>'
+        '</div></div>'
+    )
+
+
 def error_card(message: str) -> str:
     """Friendly 'what's missing' card shown instead of crashing on missing weights."""
     body = html.escape(message).replace("\n", "<br>")

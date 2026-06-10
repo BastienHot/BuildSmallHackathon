@@ -58,8 +58,9 @@ class GameSession:
     """Per-user state held in gr.State (one instance per browser session)."""
 
     case: Optional[Case] = None
-    turn: int = 0                    # beats generated so far
+    turn: int = 0                    # beats GENERATED so far (during the pre-gen phase)
     wrapped: bool = False            # GM signalled closure
+    playback_idx: int = 0            # which pre-generated line the player is viewing
     mode: str = "off"                # config.PLAYBACK_OFF | PLAYBACK_ON
     guess: str = ""
     score: Optional[int] = None
@@ -74,19 +75,31 @@ class GameSession:
 
     @property
     def finished_playback(self) -> bool:
-        """True once the debate has reached closure (wrap_up or out of budget)."""
+        """True once GENERATION has reached closure (wrap_up or out of budget).
+
+        Drives the pre-generation loop, not the player's click-through (see
+        ``playback_done`` for that).
+        """
         if not self.case:
             return False
         return self.wrapped or self.turn >= self.budget
 
+    @property
+    def playback_done(self) -> bool:
+        """True once the player has clicked through to the last pre-generated line."""
+        if not self.case or not self.case.lines:
+            return False
+        return self.playback_idx >= len(self.case.lines) - 1
+
     def current_line(self) -> Optional[Line]:
         if not self.case or not self.case.lines:
             return None
-        return self.case.lines[-1]
+        return self.case.lines[min(self.playback_idx, len(self.case.lines) - 1)]
 
     def reset_playback(self) -> None:
         self.turn = 0
         self.wrapped = False
+        self.playback_idx = 0
         self.guess = ""
         self.score = None
         self.rationale = ""
