@@ -12,9 +12,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # HF Spaces run the container as uid 1000 — keep everything under that user's home.
 RUN useradd -m -u 1000 user
 USER user
+# CMAKE_ARGS: AVX2 vectorization (the whole point of the source build), plus
+# -DLLAMA_BUILD_{TESTS,EXAMPLES,SERVER}=OFF so CMake skips the llama.cpp sub-targets
+# that llama-cpp-python never ships -- they're dead weight that pad the compile.
+# CMAKE_BUILD_PARALLEL_LEVEL: use BOTH build vCPUs (the source build is single-job by
+# default). Together these keep the from-source AVX2 wheel inside HF's build-time budget;
+# without them the compile overran and the Space failed with "Job timeout".
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON" \
+    CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF" \
+    CMAKE_BUILD_PARALLEL_LEVEL=2 \
     BW_FETCH_WEIGHTS=1
 WORKDIR /home/user/app
 
