@@ -22,12 +22,15 @@ from __future__ import annotations
 
 import gc
 import json
+import logging
 import os
 
 import spaces
 
 from . import config
 from .models import CaseFile, GMDecision, Line
+
+log = logging.getLogger(__name__)
 
 # llama_cpp is imported lazily inside _gpu_call (which runs inside @spaces.GPU) because
 # the CUDA wheel links against libcudart.so.12 which is only available inside the GPU
@@ -177,6 +180,9 @@ class TextEngine:
         'index N out of bounds for axis 0 with size M' on some models. Trades a little
         prefill speed for stability — and only for the rest of this session, once a fault
         has actually been seen. The happy path keeps full prompt-cache reuse."""
+        if not self._safe_mode:
+            log.warning("Engaging safe mode: disabling llama.cpp prompt-cache prefix reuse "
+                        "for the rest of this session (clean re-prefill per call).")
         self._safe_mode = True
         self.reset_contexts()
 

@@ -14,10 +14,13 @@ clear message instead of crashing.
 from __future__ import annotations
 
 import importlib.util
+import logging
 import os
 
 from . import config
 from .models import Case, CaseFile, Line
+
+log = logging.getLogger(__name__)
 
 _engine = None  # lazily created so the app still launches (to show preflight) with no llama.cpp
 
@@ -63,15 +66,25 @@ def next_turn(session) -> Line | None:
         return None
     budget = case.case_file.turn_budget
     last_err: Exception | None = None
-    for attempt in range(3):
+    attempts = 3
+    for attempt in range(attempts):
         try:
             d = _eng().gm_decide(case.case_file, case.lines, session.turn, budget)
             text = _eng().act(d.next_speaker, d.stage_direction, case.jargon_style, d.intensity)
             break
         except Exception as e:   # noqa: BLE001 — retry any runtime/sampling failure
             last_err = e
+            # log.exception emits the FULL traceback (incl. the llama_cpp file/line that
+            # raised) — this is exactly what to read from the Container logs after a crash.
+            log.exception(
+                "Beat generation failed: turn %d/%d, style=%s, attempt %d/%d, lines_so_far=%d",
+                session.turn + 1, budget, case.jargon_style, attempt + 1, attempts,
+                len(case.lines),
+            )
             _eng().enable_safe_mode()
     else:
+        log.error("Beat %d aborted after %d attempts — giving up (%s: %s)",
+                  session.turn + 1, attempts, type(last_err).__name__, last_err)
         raise last_err  # all retries exhausted — surface to the caller
 
     line = Line(actor=d.next_speaker, beat_type=d.beat_type, text=text)

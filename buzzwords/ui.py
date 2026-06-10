@@ -5,12 +5,15 @@ there is no manual show/hide juggling — switching step = return gr.Walkthrough
 
 from __future__ import annotations
 
+import logging
 import tempfile
 
 import gradio as gr
 
 from . import config, pipeline, scene, tts_engine
 from .models import GameSession
+
+log = logging.getLogger(__name__)
 
 VOICE_CHOICES = [("Voices", config.PLAYBACK_ON), ("Silent", config.PLAYBACK_OFF)]
 JARGON_CHOICES = [(spec["label"], key) for key, spec in config.JARGONS.items()]
@@ -75,6 +78,8 @@ def start_case(mode, jargon, s):
         return
 
     budget = s.case.case_file.turn_budget
+    log.info("Pre-generating hearing: style=%s, difficulty=%s, budget=%d beats",
+             jargon, config.DEFAULT_DIFFICULTY, budget)
     yield _loading_view(s, 0.10, "The Game Master is drafting your charges…")
 
     # Generate every beat now; the player never waits mid-hearing.
@@ -83,8 +88,13 @@ def start_case(mode, jargon, s):
             line = pipeline.next_turn(s)
         except Exception as e:
             if len(s.case.lines) >= 2:   # enough of a trial to play — close it out early
+                log.warning("Beat generation gave up at turn %d; closing the hearing early "
+                            "with %d beat(s). Cause: %s: %s",
+                            s.turn + 1, len(s.case.lines), type(e).__name__, e)
                 s.wrapped = True
                 break
+            log.error("Could not generate the hearing (only %d beat(s)); showing error card.",
+                      len(s.case.lines))
             yield _charges_error(s, f"Generation failed:\n• {e}")
             return
         if line is None:
@@ -93,6 +103,8 @@ def start_case(mode, jargon, s):
         frac = min(0.97, 0.10 + 0.87 * (s.turn / max(1, budget)))
         yield _loading_view(s, frac, f"Staging the hearing — beat {s.turn} of {budget}…")
 
+    log.info("Hearing ready: %d beat(s) generated (safe_mode=%s).",
+             len(s.case.lines), getattr(pipeline._eng(), "_safe_mode", "?"))
     s.playback_idx = 0
     cont, plea = _hearing_buttons(s)
     yield (s, gr.Walkthrough(selected=HEARING), "",
@@ -116,6 +128,7 @@ def submit_plea(guess, s):
     try:
         s.score, s.rationale = pipeline.score_guess(s.case, s.guess)
     except Exception as e:
+        log.exception("Scoring failed for guess=%r", s.guess)
         return s, gr.Walkthrough(selected=VERDICT), scene.error_card(f"Scoring failed:\n• {e}")
     return (s, gr.Walkthrough(selected=VERDICT),
             scene.render_verdict_banner(s) + scene.render_reveal(s))
