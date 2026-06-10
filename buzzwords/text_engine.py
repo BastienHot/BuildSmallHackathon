@@ -106,7 +106,6 @@ def _gpu_call(
     grammar_str: str | None,
     max_tokens: int,
     temperature: float,
-    reset_first: bool = False,
 ) -> str:
     """Load model (if not cached) and run one chat-completion. GPU-context-safe."""
     # ZeroGPU provides a virtual GPU for PyTorch but doesn't install system CUDA libs.
@@ -143,21 +142,18 @@ def _gpu_call(
             n_gpu_layers=spec.get("n_gpu_layers", 0),
             lora_path=lora_path,
             verbose=config.LLAMA_VERBOSE,
+            # Pin thread counts when BW_NUM_THREADS is set. In a container os.cpu_count()
+            # often reports the HOST cores, not the Space's vCPU quota, so llama.cpp can
+            # over-subscribe (e.g. 16 threads on 2 vCPU) and crawl. None = library default.
+            **({"n_threads": config.NUM_THREADS, "n_threads_batch": config.NUM_THREADS}
+               if config.NUM_THREADS else {}),
         )
     grammar_obj = LlamaGrammar.from_string(grammar_str) if grammar_str else None
-    # By default we KEEP llama-cpp-python's prompt-cache reuse: it skips re-evaluating the
-    # shared prefix across beats (identical system prompt + brief), which is most of the
-    # prefill cost on CPU. Only in safe mode (engaged after a runtime fault — that reuse
-    # path can raise "index N out of bounds ..." on some models) do we reset first to force
-    # a clean full prefill. So the fast path stays fast; we slow down only if forced to.
+    # We keep llama-cpp-python's prompt-cache prefix reuse on (it skips re-evaluating the
+    # shared prompt prefix across beats). Decode, not prefill, dominates on CPU, so this is
+    # a minor win — but it's free and correct, so there's no reason to reset between calls.
     llm = model_cache[key]
-    # kv_before = tokens left in the KV cache from this model's PREVIOUS call. If it's >0
-    # (and reset_first is False), llama-cpp-python can reuse the shared prompt prefix —
-    # i.e. the cache is live. If it's 0 every call, no reuse is possible and prefill is
-    # paid in full each time. This is the definitive "is the cache working?" signal.
-    kv_before = int(getattr(llm, "n_tokens", 0))
-    if reset_first:
-        llm.reset()
+    kv_before = int(getattr(llm, "n_tokens", 0))   # >0 => prior context is reusable (cache live)
     t0 = time.perf_counter()
     out = llm.create_chat_completion(
         messages=[{"role": "system", "content": system},
@@ -170,8 +166,8 @@ def _gpu_call(
     usage = out.get("usage") or {}
     ptok, ctok = usage.get("prompt_tokens", -1), usage.get("completion_tokens", -1)
     gen_rate = (ctok / dt) if (dt > 0 and isinstance(ctok, int) and ctok > 0) else 0.0
-    log.info("[gen] key=%s reset_first=%s kv_before=%d prompt_tok=%s gen_tok=%s wall=%.2fs gen=%.1f tok/s",
-             key, reset_first, kv_before, ptok, ctok, dt, gen_rate)
+    log.info("[gen] key=%s kv_before=%d prompt_tok=%s gen_tok=%s wall=%.2fs gen=%.1f tok/s",
+             key, kv_before, ptok, ctok, dt, gen_rate)
     return out["choices"][0]["message"]["content"]
 
 
@@ -184,34 +180,11 @@ class TextEngine:
 
     def __init__(self):
         self._models: dict = {}
-        self._safe_mode = False   # off until a runtime fault forces clean re-prefills
 
     def complete(self, spec: dict, system: str, prompt: str, *,
                  grammar: str | None = None, max_tokens: int = 256,
                  temperature: float = 0.8) -> str:
-        return _gpu_call(spec, self._models, system, prompt, grammar,
-                         max_tokens, temperature, self._safe_mode)
-
-    def enable_safe_mode(self) -> None:
-        """Stop reusing the KV-cache prefix across calls and flush what's resident.
-
-        Called only after a beat throws: llama-cpp-python's prefix-reuse path can raise
-        'index N out of bounds for axis 0 with size M' on some models. Trades a little
-        prefill speed for stability — and only for the rest of this session, once a fault
-        has actually been seen. The happy path keeps full prompt-cache reuse."""
-        if not self._safe_mode:
-            log.warning("Engaging safe mode: disabling llama.cpp prompt-cache prefix reuse "
-                        "for the rest of this session (clean re-prefill per call).")
-        self._safe_mode = True
-        self.reset_contexts()
-
-    def reset_contexts(self) -> None:
-        """Clear every resident model's KV cache (used to recover after a failed beat)."""
-        for model in self._models.values():
-            try:
-                model.reset()
-            except Exception:
-                pass
+        return _gpu_call(spec, self._models, system, prompt, grammar, max_tokens, temperature)
 
     # ---------------------------------------------------------- Game Master
     def casefile(self, style: str, difficulty: str) -> dict:

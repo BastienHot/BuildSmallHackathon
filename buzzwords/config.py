@@ -37,6 +37,12 @@ LLAMA_VERBOSE = os.getenv("BW_LLAMA_VERBOSE", "0") == "1"
 # (no runtime LoRA) is the real fix. NOTE: with LoRA off, the GM/actors run the vanilla base.
 DISABLE_LORA = os.getenv("BW_DISABLE_LORA", "0") == "1"
 
+# Pin llama.cpp thread count. In a container os.cpu_count() can report the HOST's cores
+# rather than the Space's vCPU quota, so llama.cpp may spawn far more threads than there are
+# real cores and thrash. Set BW_NUM_THREADS to the Space's vCPUs (2 on cpu-basic, 8 on the
+# upgrade). 0/unset = let llama.cpp choose.
+NUM_THREADS = int(os.getenv("BW_NUM_THREADS", "0")) or None
+
 
 def _detect_gpu_layers() -> int:
     """Return -1 (full GPU offload) if CUDA is available and allowed, else 0 (CPU)."""

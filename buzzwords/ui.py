@@ -82,19 +82,13 @@ def start_case(mode, jargon, s):
              jargon, config.DEFAULT_DIFFICULTY, budget)
     yield _loading_view(s, 0.10, "The Game Master is drafting your charges…")
 
-    # Generate every beat now; the player never waits mid-hearing.
+    # Generate every beat now; the player never waits mid-hearing. A failure surfaces
+    # honestly (full traceback already logged in pipeline.next_turn) rather than being
+    # masked by closing the hearing early.
     while not s.finished_playback:
         try:
             line = pipeline.next_turn(s)
         except Exception as e:
-            if len(s.case.lines) >= 2:   # enough of a trial to play — close it out early
-                log.warning("Beat generation gave up at turn %d; closing the hearing early "
-                            "with %d beat(s). Cause: %s: %s",
-                            s.turn + 1, len(s.case.lines), type(e).__name__, e)
-                s.wrapped = True
-                break
-            log.error("Could not generate the hearing (only %d beat(s)); showing error card.",
-                      len(s.case.lines))
             yield _charges_error(s, f"Generation failed:\n• {e}")
             return
         if line is None:
@@ -103,8 +97,7 @@ def start_case(mode, jargon, s):
         frac = min(0.97, 0.10 + 0.87 * (s.turn / max(1, budget)))
         yield _loading_view(s, frac, f"Staging the hearing — beat {s.turn} of {budget}…")
 
-    log.info("Hearing ready: %d beat(s) generated (safe_mode=%s).",
-             len(s.case.lines), getattr(pipeline._eng(), "_safe_mode", "?"))
+    log.info("Hearing ready: %d beat(s) generated.", len(s.case.lines))
     s.playback_idx = 0
     cont, plea = _hearing_buttons(s)
     yield (s, gr.Walkthrough(selected=HEARING), "",
