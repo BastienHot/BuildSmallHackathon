@@ -140,29 +140,50 @@ footer { display:none !important; }
   .hero-emblem.spin { animation:none; } .loadbar-fill { transition:none; }
 }
 
-/* ---------------- EVIDENCE DOCKET ----------------
-   The solvable puzzle layer under the jargon theater. Styled like the app's
-   dark cards (.files/.verdict): panel background, gold exhibit tags. */
-.docket {
-  margin-top:12px; padding:12px 14px 8px; border-radius:12px;
-  background:var(--panel); border:1px solid var(--line);
-  box-shadow:0 8px 24px rgba(0,0,0,.35);
+/* ---------------- EVIDENCE BOARD ----------------
+   The solvable puzzle layer under the jargon theater: paper notes pinned to a
+   detective board. Every element pins BOTH background and color with !important
+   (a Gradio prose override once produced white-on-white text here). */
+.eboard {
+  margin-top:14px; padding:12px 14px 14px; border-radius:14px;
+  background:linear-gradient(#23180f, #1c130c) !important;
+  border:1px solid #4a3826 !important;
+  box-shadow:inset 0 0 40px rgba(0,0,0,.5), 0 10px 28px rgba(0,0,0,.45);
 }
-.docket-title {
-  font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.12em;
-  color:var(--accent) !important; margin-bottom:8px;
+.eb-head { display:flex; justify-content:space-between; align-items:baseline;
+  margin-bottom:10px; }
+.eb-title { font-size:11px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.14em; color:var(--accent) !important; }
+.eb-count { font-size:11px; font-weight:700; color:#a8917a !important;
+  letter-spacing:.06em; }
+.eb-empty { font-size:13px; font-style:italic; color:#a8917a !important;
+  text-align:center; padding:10px 0 4px; }
+.eb-notes { display:flex; flex-wrap:wrap; gap:12px; }
+.note {
+  position:relative; flex:1 1 170px; max-width:48%;
+  background:linear-gradient(#fbf4df, #f3e9cd) !important;
+  color:#2b2417 !important; border-radius:3px; padding:18px 12px 10px;
+  box-shadow:0 6px 14px rgba(0,0,0,.45);
+  transform:rotate(-1.2deg);
 }
-.exhibit {
-  display:flex; gap:12px; align-items:baseline; padding:7px 2px;
-  border-top:1px solid rgba(58,64,77,.55);
+.note:nth-child(2n)  { transform:rotate(1.4deg); }
+.note:nth-child(3n)  { transform:rotate(-0.6deg); }
+.note:last-child { animation:note-pin .4s ease-out; }
+.note:hover { transform:rotate(0deg) scale(1.03); transition:transform .12s; z-index:3; }
+.pin { position:absolute; top:7px; left:50%; width:11px; height:11px; margin-left:-5px;
+  border-radius:50%; background:radial-gradient(circle at 35% 30%, #e66, #8f1d12) !important;
+  box-shadow:0 2px 3px rgba(0,0,0,.5); }
+.note-tag { display:inline-block; font-size:9.5px; font-weight:800;
+  text-transform:uppercase; letter-spacing:.1em; color:#8f1d12 !important;
+  border:1.5px solid #8f1d12; border-radius:3px; padding:1px 6px; margin-bottom:6px;
+  transform:rotate(-2deg); background:transparent !important; }
+.note-text { margin:0 !important; font-size:13.5px; line-height:1.45;
+  color:#2b2417 !important;
+  font-family:"Segoe Print","Comic Sans MS",cursive,var(--ui); }
+@keyframes note-pin {
+  from { opacity:0; transform:translateY(-10px) rotate(3deg) scale(1.06); }
 }
-.exhibit:first-of-type { border-top:none; }
-.exhibit:last-of-type { animation:exhibit-in .35s ease-out; }
-.ex-tag {
-  flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase;
-  letter-spacing:.08em; color:#1a1300 !important; background:var(--accent);
-  border-radius:6px; padding:2px 8px; box-shadow:0 2px 0 #9c7a18;
+@media (max-width:640px) { .note { max-width:100%; } }
+@media (prefers-reduced-motion:reduce) {
+  .note:last-child { animation:none; } .note:hover { transition:none; }
 }
-.ex-text { color:var(--text) !important; font-size:14.5px; line-height:1.45; }
-@keyframes exhibit-in { from { opacity:0; transform:translateY(4px); } }
-@media (prefers-reduced-motion:reduce) { .exhibit:last-of-type { animation:none; } }

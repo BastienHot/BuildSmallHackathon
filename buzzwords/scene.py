@@ -55,17 +55,24 @@ def render_stage(case: Case, line: Line | None, evidence: list[str] | None = Non
     measured unwinnable even for the 31B teacher)."""
     bubble = _bubble(line) if line else ""
     hint = '<div class="hint">▶ click <b>Continue</b></div>' if line else ""
-    docket = ""
+    evidence = evidence or []
     if evidence:
-        rows = "".join(
-            f'<div class="exhibit"><span class="ex-tag">Exhibit {chr(65 + i)}</span>'
-            f'<span class="ex-text">{html.escape(_sentence(f, period=True))}</span></div>'
+        notes = "".join(
+            f'<div class="note"><span class="pin"></span>'
+            f'<span class="note-tag">Exhibit {chr(65 + i)}</span>'
+            f'<p class="note-text">{html.escape(_sentence(f, period=True))}</p></div>'
             for i, f in enumerate(evidence))
-        docket = (f'<div class="docket"><div class="docket-title">Court record · '
-                  f'exhibits entered</div>{rows}</div>')
+        body = f'<div class="eb-notes">{notes}</div>'
+        count = f'{len(evidence)} exhibit{"s" if len(evidence) > 1 else ""}'
+    else:
+        body = '<div class="eb-empty">No exhibits entered yet — listen closely.</div>'
+        count = "&nbsp;"
+    board = (f'<div class="eboard"><div class="eb-head">'
+             f'<span class="eb-title">⚖ Evidence board</span>'
+             f'<span class="eb-count">{count}</span></div>{body}</div>')
     return (
         f'<div class="stage" style="background-image:url(\'{image_url(case.jargon_style)}\')">'
-        f'<div class="vignette"></div>{bubble}{hint}</div>{docket}'
+        f'<div class="vignette"></div>{bubble}{hint}</div>{board}'
     )
 
 
