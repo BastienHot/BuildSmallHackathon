@@ -68,16 +68,17 @@ def _loading_view(s, frac, desc):
 
 # ------------------------------------------------------------------ handlers
 def start_case(jargon, s):
-    """Sample the case, start the background generator, and show beat 1 the moment it
-    exists (~case file + one beat, not the whole hearing). A generator: each yield
-    repaints the UI."""
+    """Sample the case and PRE-GENERATE the whole hearing behind the progress bar
+    (player decision: the total wait is short, and every Continue must be instant).
+    The worker still runs in a background thread; this handler just streams progress
+    until it finishes. A generator: each yield repaints the UI."""
     problem = pipeline.preflight()
     if problem:
         yield _charges_error(s, problem)
         return
 
     s = GameSession()
-    yield _loading_view(s, 0.10, "Calling the court to order…")
+    yield _loading_view(s, 0.04, "Calling the court to order…")
     try:
         s.case = pipeline.new_case(jargon)
     except Exception as e:  # noqa: BLE001 — engine/startup failure
@@ -85,11 +86,14 @@ def start_case(jargon, s):
         yield _charges_error(s, f"Could not start the hearing:\n• {e}")
         return
 
-    log.info("Case sampled (style=%s); starting background generation", jargon)
+    log.info("Case sampled (style=%s); pre-generating the hearing", jargon)
     pipeline.start_generation(s)
-    yield _loading_view(s, 0.45, "The Game Master is drafting your charges…")
-
-    while not s.case.lines and not s.gen_done:
+    budget, shown = s.case.case_file.turn_budget, -1
+    while not s.gen_done:
+        if s.turn != shown:   # only repaint when a new beat lands
+            shown = s.turn
+            frac = min(0.96, 0.10 + 0.86 * (s.turn / max(1, budget)))
+            yield _loading_view(s, frac, f"Staging the hearing — beat {s.turn} of {budget}…")
         time.sleep(0.5)
     if not s.case.lines:
         yield _charges_error(s, f"Generation failed:\n• {s.gen_error or 'no beats produced'}")
@@ -99,8 +103,8 @@ def start_case(jargon, s):
 
 
 def advance(s):
-    """Step to the next beat. Instant when the worker is ahead of the player; shows a
-    short deliberation card when it isn't (the player out-read the model)."""
+    """Step to the next pre-generated beat — instant. (The deliberation-wait branch
+    below is a safety net; with full pre-generation it should never be reached.)"""
     if s.next_line_ready():
         s.playback_idx += 1
         yield _hearing_view(s)
