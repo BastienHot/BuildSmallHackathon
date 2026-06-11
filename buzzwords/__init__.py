@@ -1,12 +1,13 @@
 """Buzzwords & Misdemeanors - a courtroom deduction game built on small models.
 
-See docs/ARCHITECTURE.md for the design. Package layout:
-    config       - settings, model paths, required-weights list
+See docs/ARCHITECTURE.md + docs/REBUILD_REVIEW.md for the design. Package layout:
+    contracts    - THE single source of truth: grammars, prompts, enums (shared w/ training)
+    pools        - curated truths: professions w/ domain tags + matched faults
+    config       - settings, model/server paths, required-weights list
     models       - CaseFile / GMDecision / Line / Case / GameSession dataclasses
-    text_engine  - llama.cpp: Game Master (Nemotron) + actors (MiniCPM + style LoRA)
-    tts_engine   - optional VoxCPM2 voice cloning (@spaces.GPU; text-only fallback)
-    pipeline     - case file + turn loop + scoring (+ preflight checks)
+    engine       - managed llama-server subprocess (1 base + per-request LoRA scales)
+    pipeline     - sampled case + guarded turn loop + background generation + scoring
     ui           - the Gradio gr.Walkthrough UI (phases -> steps)
 """
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"

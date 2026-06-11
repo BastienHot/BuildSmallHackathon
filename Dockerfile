@@ -1,34 +1,45 @@
-# Docker Space (sdk: docker) that runs the SAME Gradio app — we use Docker only to control
-# the build so llama-cpp-python is compiled with AVX2. The prebuilt CPU wheels are
-# un-vectorized (~2 tok/s prefill on cpu-basic); AVX2 gives ~60-80 prefill / ~12 decode,
-# which is what makes the all-1B game playable on the free 2-vCPU tier.
-FROM python:3.12-slim
+# Docker Space (sdk: docker). Docker exists to control ONE thing: building llama.cpp's
+# `llama-server` from source with AVX2 (prebuilt CPU binaries/wheels are un-vectorized;
+# AVX2 is ~30-40x faster prompt eval on the free 2-vCPU tier). The app itself is plain
+# Gradio talking HTTP to the managed llama-server subprocess (buzzwords/engine.py).
 
-# build toolchain for the from-source llama.cpp compile; libgomp for OpenMP at runtime.
+# ---------- stage 1: build llama-server (AVX2, mostly-static) ----------
+FROM debian:bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential cmake git libgomp1 \
+        build-essential cmake git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+# Pin a tag for reproducible builds (override at build time: --build-arg LLAMA_CPP_TAG=bXXXX).
+ARG LLAMA_CPP_TAG=master
+RUN git clone --depth 1 --branch ${LLAMA_CPP_TAG} \
+        https://github.com/ggml-org/llama.cpp /opt/llama.cpp
+# -DGGML_NATIVE=OFF + explicit AVX2/FMA/F16C: vectorized but portable across Space hosts.
+# -DBUILD_SHARED_LIBS=OFF: a self-contained binary we can COPY into the runtime stage.
+# -DLLAMA_CURL=OFF: the app downloads weights itself; skip the libcurl dependency.
+# -j2: both build vCPUs, keeps the compile inside HF's build-time budget.
+RUN cmake -S /opt/llama.cpp -B /opt/llama.cpp/build \
+        -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DLLAMA_CURL=OFF \
+        -DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON \
+    && cmake --build /opt/llama.cpp/build --target llama-server -j2
+
+# ---------- stage 2: the app ----------
+FROM python:3.12-slim
+# libgomp for llama.cpp's OpenMP threading at runtime.
+RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=build /opt/llama.cpp/build/bin/llama-server /usr/local/bin/llama-server
 
 # HF Spaces run the container as uid 1000 — keep everything under that user's home.
 RUN useradd -m -u 1000 user
 USER user
-# CMAKE_ARGS: AVX2 vectorization (the whole point of the source build), plus
-# -DLLAMA_BUILD_{TESTS,EXAMPLES,SERVER}=OFF so CMake skips the llama.cpp sub-targets
-# that llama-cpp-python never ships -- they're dead weight that pad the compile.
-# CMAKE_BUILD_PARALLEL_LEVEL: use BOTH build vCPUs (the source build is single-job by
-# default). Together these keep the from-source AVX2 wheel inside HF's build-time budget;
-# without them the compile overran and the Space failed with "Job timeout".
 ENV HOME=/home/user \
     PATH=/home/user/.local/bin:$PATH \
-    CMAKE_ARGS="-DGGML_NATIVE=OFF -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DLLAMA_BUILD_TESTS=OFF -DLLAMA_BUILD_EXAMPLES=OFF -DLLAMA_BUILD_SERVER=OFF" \
-    CMAKE_BUILD_PARALLEL_LEVEL=2 \
-    BW_FETCH_WEIGHTS=1
+    BW_FETCH_WEIGHTS=1 \
+    BW_THREADS=2
 WORKDIR /home/user/app
 
-# deps first (layer cache). --no-binary forces the AVX2 SOURCE build of llama-cpp-python
-# (so CMAKE_ARGS take effect instead of pip grabbing an un-vectorized wheel).
+# deps first (layer cache)
 COPY --chown=user:user requirements.txt .
-RUN pip install --no-cache-dir --user --no-binary llama-cpp-python -r requirements.txt
+RUN pip install --no-cache-dir --user -r requirements.txt
 
 COPY --chown=user:user . .
 EXPOSE 7860

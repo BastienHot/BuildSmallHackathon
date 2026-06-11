@@ -1,21 +1,13 @@
-# CPU deploy (Docker Space). llama-cpp-python is built from SOURCE with AVX2 by the
-# Dockerfile (ENV CMAKE_ARGS + `pip --no-binary llama-cpp-python`) — the prebuilt CPU
-# wheels are un-vectorized (~2 tok/s prefill); AVX2 gives ~60-80 prefill / ~12 decode on
-# cpu-basic, which keeps the all-1B game playable. No GPU / CUDA wheel index needed.
+# CPU deploy (Docker Space). All inference goes through the llama-server binary that the
+# Dockerfile compiles from llama.cpp source with AVX2 (the prebuilt CPU wheels/binaries are
+# un-vectorized; AVX2 gives ~60-80 tok/s prefill / ~12 decode on cpu-basic). The app talks
+# to it over HTTP — no llama-cpp-python, no GPU, no CUDA anywhere.
 
 # --- Gradio app (launched by our own CMD inside the Docker Space) ---
 gradio==6.0.1
 
-# --- ZeroGPU decorator: a transparent no-op on CPU (kept so the app code is unchanged) ---
-spaces
-
-# --- Text models via llama.cpp (compiled AVX2 from source by the Dockerfile) ---
-llama-cpp-python==0.3.28
+# --- HTTP client for the managed llama-server subprocess ---
+requests
 
 # --- Hub access for pulling the base GGUF + director/style LoRAs at startup ---
 huggingface_hub
-
-# --- TTS deps (optional; VoxCPM is GPU-bound and disabled on the CPU deploy). torch is NOT
-#     installed here — config/tts/text_engine all import it lazily with a graceful fallback. ---
-soundfile
-numpy

@@ -1,8 +1,16 @@
 # Training pipeline (Modal GPU, offline)
 
-Produces every adapter the game uses on the vanilla MiniCPM5-1B base — the eight per-style
-**actor** LoRAs and the single multitask **director** (Game Master) LoRA. We ship adapters,
-never a merged base. Everything here runs on Modal, not the player's machine.
+Produces every adapter the game uses on the vanilla MiniCPM5-1B base — the eight
+per-style **actor** LoRAs and the single multitask **director** (Game Master) LoRA.
+We ship adapters, never a merged base. Everything here runs on Modal, never on the
+player's machine.
+
+**Single source of truth:** every prompt, grammar, enum, and budget comes from
+`buzzwords/contracts.py` (+ the truth pools in `buzzwords/pools.py`), imported by both
+the runtime and every script in this directory. Datagen stamps
+`contracts.SHAPE_VERSION` into a `<name>.manifest.json` next to each dataset, and
+training **refuses** a dataset whose shape version doesn't match the code.
+See `docs/REBUILD_REVIEW.md` for the full design.
 
 ## One-time setup
 
@@ -14,58 +22,66 @@ modal secret create huggingface HF_TOKEN=hf_xxx   # for gated model downloads
 
 ## Run order
 
-Two parallel distillations off the same Gemma teacher: the per-style **actors** and the single
-**director** (Game Master). ALWAYS smoke-test small first and eyeball the printed sample before
-scaling (`--base_seed` / `--base-seed` re-rolls the variety).
+ALWAYS smoke-test small first and eyeball the printed sample before scaling
+(`--base-seed` re-rolls the variety).
 
 ```bash
-# --- Actors (8 per-style LoRAs) -> buzzwords-data + buzzwords-adapters ---
-modal run training/teacher_datagen.py --style aviation --n 5   # smoke test
-modal run training/teacher_datagen.py                          # legal_generic + every style
-modal run training/finetune.py                                 # legal_base, then actor_<style> forks
+# --- Actors (8 per-style LoRAs) ---
+modal run training/teacher_datagen.py --style aviation --n 5    # smoke test
+modal run training/teacher_datagen.py                           # legal_generic + every style
+modal run training/finetune.py                                  # legal_base, then actor_<style> forks
+modal run training/evaluate.py                                  # style lift + fluency + engagement
 
-# --- Director / Game Master (1 multitask LoRA: casefile + decide + score) ---
-modal run training/director_datagen.py --task game --n 4       # smoke test (eyeball the trace)
-modal run training/director_datagen.py --n 300 --casefile-extra 600   # full mixed director.jsonl
-modal run training/director_finetune.py                        # -> "director" adapter
+# Optional one-off ablation (§6.5): does stage 1 actually help?
+modal run training/finetune.py --style corporate --skip-stage1 --no-fork
 
-# --- Convert all adapters -> GGUF (no merge) and pull into models/ ---
-modal run training/convert_gguf.py                             # style-*.lora.gguf + director.lora.gguf
+# --- Director / Game Master (1 multitask LoRA: facts + decide + score) ---
+modal run training/director_datagen.py --task game --n 4        # smoke test (eyeball the trace)
+modal run training/director_datagen.py --n 300 --facts-extra 600   # full mixed director.jsonl
+modal run training/director_finetune.py                         # -> "director" adapter
+
+# --- Held-out benchmark (teacher-forced regime) ---
+modal run training/director_datagen.py --task game --n 40 --base-seed 900000 --out director_game_heldout
+modal run training/director_datagen.py --task label --source director_game_heldout.jsonl   # self-agreement baseline
+modal run training/director_evaluate.py
+
+# --- Convert all adapters -> GGUF (no merge) ---
+modal run training/convert_gguf.py
 modal volume get buzzwords-gguf / ./models
+
+# --- THE ship/no-ship gate: N full self-rollout games, real actors, + solvability ---
+modal run training/e2e_gate.py --n 12
 ```
 
-Gate the director before shipping it:
+If the e2e gate fails on sequencing, iterate in this order (REBUILD_REVIEW.md §13.6):
+the deterministic guards already ship; then regenerate/retrain; and only then run the
+DAgger pass — the gate dumps `director_contexts_selfplay.jsonl`, so:
+
 ```bash
-# generate a disjoint HELD-OUT set first, then benchmark base-vs-LoRA on its real contexts:
-modal run training/director_datagen.py --task game --n 40 --base-seed 900000
-modal run training/director_evaluate.py   # speaker balance / transitions / teacher-agreement / calibration
-modal run training/director_gate.py       # full grammar-constrained game via llama.cpp
+modal run training/director_datagen.py --task label --source director_contexts_selfplay.jsonl --out director_dagger
+# merge director_dagger.jsonl into director.jsonl and re-run director_finetune.py
 ```
 
-The app then loads `models/MiniCPM5-1B-Q4_K_M.gguf` with `director.lora.gguf` for the GM and
-`style-<style>.lora.gguf` for the actors (see `buzzwords/config.py`).
+Finally, publish the trace pool (runs locally, needs models/ + llama-server):
+```bash
+python training/share_trace.py --n 64
+```
 
 ## Design notes
-- **Quantized teacher:** Gemma 4 31B-it runs as **FP8** (`RedHatAI/gemma-4-31B-it-FP8-block`,
-  ~29 GB vs ~62 GB bf16), auto-detected by vLLM from the checkpoint config. Default GPU is
-  **L40S** (native FP8, 48 GB). Override with `BW_TEACHER_MODEL` / `BW_TEACHER_QUANT` /
-  `BW_TEACHER_GPU` — e.g. an AWQ repo (`BW_TEACHER_QUANT=awq`, `BW_TEACHER_GPU=A100-40GB`)
-  or unsloth bnb-4bit (`BW_TEACHER_QUANT=bitsandbytes`).
-- **Seeded variety:** each sample is built from `random.Random(base_seed + i)` over
-  profession × fault × tone × disposition × severity × turn-count. Same seed → same
-  data (reproducible smoke tests); change `--base_seed` for a fresh roll.
-- **Sampling:** temp 1.05, top_p 0.95, repetition_penalty 1.08, `max_tokens` scaled to
-  turn count, per-sample `seed`. Tune in `Teacher.generate`.
-- **Smokescreen jargon:** each `style_<style>.jsonl` covers *varied* hidden professions
-  so the adapter learns the jargon *style*, not one case.
-- **Example shape = runtime shape:** every example matches the exact call the app makes —
-  actors get `role+style` system / `"Stage direction: …"` user (NO hidden brief; the runtime
-  actor never sees the truth), and the director gets the casefile / decide / score shapes from
-  `buzzwords/text_engine.py`. Train/runtime mismatch is a silent quality killer.
-- **Smokescreen by construction (director):** the profession is drawn from a pool with the
-  jargon's own domain excluded, so every casefile target is provably profession-⟂-jargon;
-  few-shot sampling + a banned-word list + a corrective retry keep the leak rate near 0.
-- **Checkpoint-fork (not resume):** stage 2 loads `legal_base` as *initialization* and
-  starts a fresh run — never `resume_from_checkpoint`. See `finetune.py`.
-- Model IDs (`openbmb/MiniCPM5-1B`, the AWQ teacher) are constants at the top of each
-  script — adjust if names differ at run time.
+- **Truth is sampled in code, not generated.** Profession + domain-matched fault come
+  from `buzzwords/pools.py` with the jargon's domain excluded — the smokescreen and
+  profession/fault coherence hold by construction; the director model only writes the
+  oblique facts (REBUILD_REVIEW.md §13.4).
+- **Example shape = runtime shape**, enforced by the shared contracts module: actors
+  get the last 1-2 public lines + optional fact + stage direction (never the truth);
+  the director gets the stable-prefix gm prompt with the fact_index clue channel.
+- **bf16 LoRA, not QLoRA** (§6.4): zero training-side quant noise; the e2e llama.cpp
+  gate validates the serving-side Q4_K_M.
+- **Group-wise split + completion-only loss + fixed seed** (§6.1-§6.5), all in
+  `train_common.py`; `train_metrics.json` records configs + manifest lineage.
+- **Checkpoint-fork (not resume):** stage 2 loads `legal_base` as *initialization*
+  and starts a fresh run — never `resume_from_checkpoint`.
+- **Quantized teacher:** Gemma 4 31B-it FP8 (`RedHatAI/gemma-4-31B-it-FP8-block`) on
+  L40S; override with `BW_TEACHER_MODEL` / `BW_TEACHER_QUANT` / `BW_TEACHER_GPU`.
+- **Single teacher / single prompt family is accepted hackathon scope** — note it in
+  the final report (§5.4).

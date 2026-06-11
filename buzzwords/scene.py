@@ -38,12 +38,21 @@ def _bubble(line: Line) -> str:
     )
 
 
-def render_stage(case: Case, line: Line | None) -> str:
+def render_stage(case: Case, line: Line | None, evidence: list[str] | None = None) -> str:
+    """The stage plus the EVIDENCE DOCKET: oblique facts surface to the player as they
+    are woven into beats. The jargon theater is the entertainment layer; the docket is
+    the solvable puzzle layer (REBUILD_REVIEW.md solvability fix — transcript-only was
+    measured unwinnable even for the 31B teacher)."""
     bubble = _bubble(line) if line else ""
     hint = '<div class="hint">▶ click <b>Continue</b></div>' if line else ""
+    docket = ""
+    if evidence:
+        items = "".join(f'<li>{html.escape(f)}</li>' for f in evidence)
+        docket = (f'<div class="docket"><div class="docket-title">⚖ Court record '
+                  f'— exhibits entered</div><ul>{items}</ul></div>')
     return (
         f'<div class="stage" style="background-image:url(\'{image_url(case.jargon_style)}\')">'
-        f'<div class="vignette"></div>{bubble}{hint}</div>'
+        f'<div class="vignette"></div>{bubble}{hint}</div>{docket}'
     )
 
 
@@ -60,10 +69,8 @@ def title_card(bg_url: str) -> str:
 
 
 def loading_card(frac: float, desc: str) -> str:
-    """Full-bleed 'preparing your hearing' card with a labelled progress bar.
-
-    Shown while the whole game is pre-generated up front, so the player only ever
-    clicks through finished beats (no waiting mid-hearing)."""
+    """Full-bleed progress card: shown while the case is drafted / the first beat
+    generates, and briefly mid-hearing if the player out-reads the background worker."""
     pct = max(0, min(100, round(frac * 100)))
     return (
         '<div class="hero loading" style="min-height:240px"><div class="hero-content">'

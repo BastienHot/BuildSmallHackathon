@@ -21,6 +21,7 @@ data/*.jsonl
 
 # Generated agent-trace artifacts (published to the Hub, not committed)
 trace_*.json
+traces/
 
 # OS / editors
 .DS_Store

@@ -20,62 +20,67 @@ Built for the Hugging Face **Build Small** hackathon — small models only, full
 
 ## How it works
 
-A **Game Master** directs a live courtroom debate; **actors** improvise in your chosen
-jargon. All text runs through the **llama.cpp** runtime on **CPU** (compiled with AVX2),
-so the whole game runs on a free **cpu-basic** Space — no GPU.
+The whole game is **one ~1B model** (MiniCPM5-1B) wearing small LoRA adapters, served by
+a single **llama-server** (llama.cpp, AVX2) on **pure CPU** — it runs on a free
+`cpu-basic` Space, no GPU anywhere.
 
-- **Game Master** — *MiniCPM5-1B + a distilled **director** LoRA*, emits GBNF-constrained
-  JSON beats (who speaks next, intensity, wrap-up). Writes a hidden **Case File** (profession +
-  fault + facts) — unrelated to the jargon — and directs the turn loop, doubling as the
-  scoring judge. Same 1B base as the actors; only the adapter differs.
-- **Actors** — *MiniCPM5-1B Q4_K_M* + **one LoRA per jargon style** (corporate, aviation, …).
-  Three roles (judge / prosecutor / defense) = three system prompts on the same adapter.
-  Each beat is generated *directly* in jargon from the GM's stage direction.
-- **Closure** — no deterministic latch in v1: the GM is trusted, nudged toward a verdict
-  by prompt-injected **turn pressure** and its own `wrap_up` flag.
-- **TTS** — *VoxCPM2* voices each character (optional, GPU; falls back to text-only).
-- **UI** — a `gr.Walkthrough` (Gradio 6) steps you through the four phases:
-  *Charges → The hearing → Your plea → The verdict*.
+- **The truth is sampled in code** from a curated pool (`buzzwords/pools.py`): a
+  profession + a domain-matched fault, with the jargon's own domain excluded — the
+  smokescreen holds by construction.
+- **Game Master** — the base + a distilled **director** LoRA. It writes the oblique
+  clue facts, then per beat emits a GBNF-constrained JSON decision (who speaks, beat
+  type, which clue to surface, intensity, stage direction, wrap-up) and doubles as the
+  scoring judge.
+- **Deterministic guards** (`buzzwords/contracts.py`) enforce the courtroom invariants
+  the model only *mostly* learned: beat/speaker compatibility (only the defense
+  pleads), never the same speaker three times running, the defense heard by mid-game,
+  and every clue fact forced out before the hearing ends.
+- **Actors** — the same base + **one LoRA per jargon style**. Three roles = three
+  system prompts. Actors see the last two public lines, the stage direction, and the
+  clue to weave in — **never the truth**, so they cannot leak it.
+- **No waiting room** — the hearing starts on the first generated beat; the rest is
+  generated in the background while you read.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full design.
-The LoRA adapters are trained offline on Modal — see [`training/`](training/README.md).
+Every prompt, grammar, and rule lives in **`buzzwords/contracts.py`** — the single
+source of truth shared verbatim with the training pipeline, so the training
+distribution *is* the inference distribution.
+
+See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
+[`docs/REBUILD_REVIEW.md`](docs/REBUILD_REVIEW.md) for the full design; the LoRAs are
+trained offline on Modal — see [`training/`](training/README.md).
 
 ## Run locally
 
-CPU-only — no GPU required (llama.cpp). For the fast AVX2 build, compile llama-cpp-python
-from source (as the Dockerfile does); a plain `pip install` grabs an un-vectorized wheel.
+CPU-only. You need a **llama-server** binary built with AVX2 (the Dockerfile does this
+for the Space; locally, grab a [llama.cpp release](https://github.com/ggml-org/llama.cpp/releases)
+or build from source) — point `BW_LLAMA_SERVER` at it if it's not on PATH.
 
 ```bash
 python -m venv .venv && source .venv/Scripts/activate   # Windows Git Bash
-CMAKE_ARGS="-DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON" pip install --no-binary llama-cpp-python -r requirements.txt
-python app.py
+pip install -r requirements.txt
+BW_FETCH_WEIGHTS=1 python app.py    # auto-pulls the GGUFs from the Hub into models/
 ```
 
-The UI launches even with no weights — clicking **Start** then tells you exactly which
-GGUFs are missing. To actually play, drop them into `models/`:
-
-- `MiniCPM5-1B-Q4_K_M.gguf` — the shared base (Game Master **and** actors)
-- `director.lora.gguf` — the Game Master adapter (`DIRECTOR_LORA`)
-- `style-<style>.lora.gguf` — *optional* per-style actor adapters from [`training/`](training/README.md);
-  until trained, actors run on the vanilla base.
-
-Paths live in `buzzwords/config.py`. On HF Spaces, set `BW_FETCH_WEIGHTS=1` to auto-pull
-the GGUFs from the Hub at startup instead — see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+The UI launches even with no weights — clicking **Start** then tells you exactly what
+is missing. Required in `models/`: `MiniCPM5-1B-Q4_K_M.gguf` (the shared base) and
+`director.lora.gguf` (the Game Master adapter); the `style-<style>.lora.gguf` actor
+adapters are optional until trained.
 
 ## Project layout
 
 ```
 app.py                  # HF Space / Gradio entrypoint
-requirements.txt        # runtime deps (gradio, llama-cpp-python, …)
+Dockerfile              # builds llama-server with AVX2 (the whole point of Docker here)
 buzzwords/              # the app package
-  config.py             # paths, jargon styles, turn budget, required-weights list
+  contracts.py          # SINGLE SOURCE OF TRUTH: grammars, prompts, guards, budgets
+  pools.py              # professions (domain-tagged) + matched faults + fallbacks
+  config.py             # paths, server settings, style->LoRA map
   models.py             # CaseFile / GMDecision / Line / Case / GameSession
-  text_engine.py        # llama.cpp: Game Master (Qwen3.5-4B) + actors (MiniCPM5-1B + LoRA), GBNF
-  pipeline.py           # case file → turn loop → scoring (+ preflight checks)
-  tts_engine.py         # optional VoxCPM2 (text-only fallback)
-  scene.py / ui.py / theme.py / static/   # gr.Walkthrough UI + HTML/CSS
-training/               # offline Modal pipeline (teacher data-gen → LoRA → GGUF)
-assets/                 # maps/<court>/variant_NN.png (backdrops), voices/ (TTS refs)
-models/                 # GGUF weights — git-ignored, you add these
-docs/ARCHITECTURE.md    # full design
+  engine.py             # managed llama-server subprocess + typed game calls
+  pipeline.py           # sampled case -> guarded turn loop -> scoring (+ preflight)
+  scene.py / ui.py / theme.py / static/   # gr.Walkthrough UI
+training/               # offline Modal pipeline (teacher datagen -> LoRA -> GGUF -> gates)
+tests/                  # model-free tests for contracts/pools/guards/pipeline
+assets/                 # maps/<court>/variant_NN.png backdrops
+models/                 # GGUF weights — git-ignored / pulled from the Hub
 ```
