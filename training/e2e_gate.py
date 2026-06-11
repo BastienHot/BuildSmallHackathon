@@ -197,6 +197,63 @@ def load_games() -> list[dict]:
     return json.load(open(f"{DATA}/e2e_games.json", encoding="utf-8"))
 
 
+TRACE_CARD = """\
+---
+license: apache-2.0
+tags: [agent-trace, llama-cpp, courtroom-game]
+---
+
+# Buzzwords & Misdemeanors — agent traces
+
+Each JSON is one full game of [Buzzwords & Misdemeanors](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors).
+A **Game Master** (MiniCPM5-1B + a distilled *director* LoRA, GBNF-constrained) directs a
+hearing beat by beat over a truth sampled in code; deterministic guards enforce courtroom
+sequencing invariants; **actors** (the same base + a per-style LoRA) deliver the lines.
+Every trace records the GM's raw structured decision per beat (speaker, beat type,
+fact_index clue channel, intensity, stage direction, wrap-up), whether a guard remapped
+it, the resulting line, the hidden truth, and scorer calibration probes. All inference is
+llama.cpp on CPU — one ~1B base + small adapters.
+"""
+
+
+@app.function(image=cpu_image, timeout=30 * 60,
+              secrets=[modal.Secret.from_name("huggingface-write")])
+def publish_traces(games: list[dict], repo: str):
+    import datetime
+    import tempfile
+    from pathlib import Path
+    from huggingface_hub import HfApi
+
+    tmp = Path(tempfile.mkdtemp())
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    for i, g in enumerate(games):
+        trace = {
+            "game": "Buzzwords & Misdemeanors",
+            "shape_version": contracts.SHAPE_VERSION,
+            "generated_at": now,
+            "jargon_style": g["style"],
+            "models": {"game_master": f"{BASE_FILE} + director.lora.gguf",
+                       "actors": f"{BASE_FILE} + style-{g['style']}.lora.gguf"},
+            "hidden_case_file": {"profession": g["profession"],
+                                 "fault_plain": g["fault"], "facts": g["facts"]},
+            "turns": [{"turn": t + 1, "gm_decision": b["raw"],
+                       "guard_remapped": b["guarded"],
+                       "speaker": b["speaker"], "beat_type": b["beat"],
+                       "fact_index": b["fact_index"], "line": b["line"]}
+                      for t, b in enumerate(g["beats"])],
+            "scorer_probes": {"spot_on": g["score_spot"], "unrelated": g["score_unrel"]},
+        }
+        (tmp / f"trace_{i:03d}_{g['style']}.json").write_text(
+            json.dumps(trace, indent=2, ensure_ascii=False), encoding="utf-8")
+    api = HfApi()
+    api.create_repo(repo, repo_type="dataset", exist_ok=True)
+    api.upload_file(path_or_fileobj=TRACE_CARD.encode(), path_in_repo="README.md",
+                    repo_id=repo, repo_type="dataset")
+    api.upload_folder(folder_path=str(tmp), path_in_repo="traces",
+                      repo_id=repo, repo_type="dataset")
+    print(f"published {len(games)} traces -> https://huggingface.co/datasets/{repo}")
+
+
 # ----------------------------------------------------------------- solvability
 @app.cls(image=gpu_image, gpu=TEACHER_GPU, timeout=60 * 60,
          volumes={"/root/.cache/huggingface": hf_cache},
@@ -322,7 +379,14 @@ def _aggregate(games: list[dict], solver: list[dict] | None) -> dict:
 
 @app.local_entrypoint()
 def main(n: int = 12, base_seed: int = 0, no_solve: bool = False, solve_only: bool = False,
-         solve_facts: bool = False):
+         solve_facts: bool = False, traces: int = 0,
+         trace_repo: str = "BastienHot/buzzwords-agent-trace"):
+    if traces:   # trace-pool mode: 8 parallel containers, then publish to the Hub
+        per = max(1, traces // 8)
+        batches = play_games.starmap([(per, 5_000 + 1_000 * i) for i in range(8)])
+        games = [g for batch in batches for g in batch]
+        publish_traces.remote(games, trace_repo)
+        return
     games = load_games.remote() if solve_only else play_games.remote(n, base_seed)
     solver = None if no_solve else Solver().solve.remote(games, solve_facts)
 
