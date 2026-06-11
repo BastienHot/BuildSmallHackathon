@@ -19,7 +19,8 @@ from .models import GameSession
 
 log = logging.getLogger(__name__)
 
-JARGON_CHOICES = [(spec["label"], key) for key, spec in config.JARGONS.items()]
+JARGON_CHOICES = [(f"{spec['icon']} {spec['label']}", key)
+                  for key, spec in config.JARGONS.items()]
 
 CHARGES, HEARING, PLEA, VERDICT = 1, 2, 3, 4
 

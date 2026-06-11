@@ -76,14 +76,14 @@ HF_LORA_REPO = os.getenv("BW_LORA_REPO", "BastienHot/buzzwords-style-loras")
 MAPS_DIR = ROOT / "assets" / "maps"
 COURT_VARIANTS = 16          # variant_01..16.png live under assets/maps/<court>/
 JARGONS = {
-    "corporate": {"court": "corporate_court", "label": "Corporate", "blurb": "Boardroom buzzwords"},
-    "aviation":  {"court": "aviation_court", "label": "Aviation",  "blurb": "Cockpit & control-tower lingo"},
-    "ai":        {"court": "ia_court",       "label": "AI",        "blurb": "Neural-net & model-training jargon"},
-    "politics":  {"court": "political_court", "label": "Politics",  "blurb": "Beltway spin & campaign lingo"},
-    "medical":   {"court": "normal_court",   "label": "Medical",   "blurb": "Clinical & bedside jargon"},
-    "gaming":    {"court": "gaming_court",   "label": "Gaming",    "blurb": "Esports & gamer slang"},
-    "sports":    {"court": "sport_court",    "label": "Sports",    "blurb": "Locker-room & play-by-play"},
-    "scifi":     {"court": "scifi_court",    "label": "Sci-fi",    "blurb": "Starship-ops technobabble"},
+    "corporate": {"court": "corporate_court", "label": "Corporate", "icon": "💼", "blurb": "Boardroom buzzwords"},
+    "aviation":  {"court": "aviation_court", "label": "Aviation",  "icon": "✈️", "blurb": "Cockpit & control-tower lingo"},
+    "ai":        {"court": "ia_court",       "label": "AI",        "icon": "🤖", "blurb": "Neural-net & model-training jargon"},
+    "politics":  {"court": "political_court", "label": "Politics",  "icon": "🏛️", "blurb": "Beltway spin & campaign lingo"},
+    "medical":   {"court": "normal_court",   "label": "Medical",   "icon": "🩺", "blurb": "Clinical & bedside jargon"},
+    "gaming":    {"court": "gaming_court",   "label": "Gaming",    "icon": "🎮", "blurb": "Esports & gamer slang"},
+    "sports":    {"court": "sport_court",    "label": "Sports",    "icon": "🏆", "blurb": "Locker-room & play-by-play"},
+    "scifi":     {"court": "scifi_court",    "label": "Sci-fi",    "icon": "🚀", "blurb": "Starship-ops technobabble"},
 }
 DEFAULT_JARGON = "corporate"
 
