@@ -140,12 +140,29 @@ footer { display:none !important; }
   .hero-emblem.spin { animation:none; } .loadbar-fill { transition:none; }
 }
 
-/* Evidence docket: the solvable puzzle layer under the jargon theater */
+/* ---------------- EVIDENCE DOCKET ----------------
+   The solvable puzzle layer under the jargon theater. Styled like the app's
+   dark cards (.files/.verdict): panel background, gold exhibit tags. */
 .docket {
-  margin-top: 10px; padding: 10px 14px; border-radius: 10px;
-  background: #f4efe3; border: 1px solid #c9b98a; color: #2a2a18 !important;
-  font-size: 0.92em;
+  margin-top:12px; padding:12px 14px 8px; border-radius:12px;
+  background:var(--panel); border:1px solid var(--line);
+  box-shadow:0 8px 24px rgba(0,0,0,.35);
 }
-.docket-title { font-weight: 700; letter-spacing: .03em; margin-bottom: 4px; }
-.docket ul { margin: 0; padding-left: 1.2em; }
-.docket li { margin: 2px 0; color: #2a2a18 !important; }
+.docket-title {
+  font-size:11px; font-weight:800; text-transform:uppercase; letter-spacing:.12em;
+  color:var(--accent) !important; margin-bottom:8px;
+}
+.exhibit {
+  display:flex; gap:12px; align-items:baseline; padding:7px 2px;
+  border-top:1px solid rgba(58,64,77,.55);
+}
+.exhibit:first-of-type { border-top:none; }
+.exhibit:last-of-type { animation:exhibit-in .35s ease-out; }
+.ex-tag {
+  flex:0 0 auto; font-size:10.5px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.08em; color:#1a1300 !important; background:var(--accent);
+  border-radius:6px; padding:2px 8px; box-shadow:0 2px 0 #9c7a18;
+}
+.ex-text { color:var(--text) !important; font-size:14.5px; line-height:1.45; }
+@keyframes exhibit-in { from { opacity:0; transform:translateY(4px); } }
+@media (prefers-reduced-motion:reduce) { .exhibit:last-of-type { animation:none; } }

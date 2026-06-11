@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import os
 import random
+import re
 import threading
 
 from . import config, contracts, pools
@@ -148,5 +149,9 @@ def start_generation(session: GameSession) -> threading.Thread:
 
 # ----------------------------------------------------------------- scoring
 def score_guess(case: Case, guess: str) -> tuple[int, str]:
+    # Deterministic guard: never ask a 1B to grade silence (an empty guess once
+    # scored 60%). Code for invariants; the model only grades real pleas.
+    if len(re.sub(r"[^a-zA-Z]", "", guess or "")) < 3:
+        return 0, "No plea was entered — the court cannot grade silence."
     cf = case.case_file
     return _eng().score(cf.profession, cf.fault_plain, guess)

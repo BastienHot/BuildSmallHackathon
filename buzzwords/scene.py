@@ -16,6 +16,16 @@ from .models import Case, GameSession, Line
 ROLE_NAME = {"judge": "Judge", "prosecutor": "Prosecutor", "defense": "Defense"}
 
 
+def _sentence(s: str, period: bool = False) -> str:
+    """Display-case a pool/model string: capitalize the first letter, optionally
+    ensure a closing period. Data stays lowercase; only the rendering changes."""
+    s = (s or "").strip()
+    s = s[:1].upper() + s[1:]
+    if period and s and s[-1] not in ".!?":
+        s += "."
+    return s
+
+
 def image_url(jargon: str) -> str:
     """Gradio static-file URL for a jargon's court backdrop (served via allowed_paths).
 
@@ -47,9 +57,12 @@ def render_stage(case: Case, line: Line | None, evidence: list[str] | None = Non
     hint = '<div class="hint">▶ click <b>Continue</b></div>' if line else ""
     docket = ""
     if evidence:
-        items = "".join(f'<li>{html.escape(f)}</li>' for f in evidence)
-        docket = (f'<div class="docket"><div class="docket-title">⚖ Court record '
-                  f'— exhibits entered</div><ul>{items}</ul></div>')
+        rows = "".join(
+            f'<div class="exhibit"><span class="ex-tag">Exhibit {chr(65 + i)}</span>'
+            f'<span class="ex-text">{html.escape(_sentence(f, period=True))}</span></div>'
+            for i, f in enumerate(evidence))
+        docket = (f'<div class="docket"><div class="docket-title">Court record · '
+                  f'exhibits entered</div>{rows}</div>')
     return (
         f'<div class="stage" style="background-image:url(\'{image_url(case.jargon_style)}\')">'
         f'<div class="vignette"></div>{bubble}{hint}</div>{docket}'
@@ -100,7 +113,8 @@ def render_verdict_banner(s: GameSession) -> str:
         f'<div class="verdict"><div class="score">{score}%</div>'
         f'<div class="word">{word}</div>'
         f'<div class="why">&ldquo;{html.escape(s.rationale)}&rdquo;</div>'
-        f'<div class="charge"><b>The real charge:</b> {html.escape(s.case.case_file.fault_plain)}</div></div>'
+        f'<div class="charge"><b>The real charge:</b> '
+        f'{html.escape(_sentence(s.case.case_file.fault_plain, period=True))}</div></div>'
     )
 
 
@@ -110,8 +124,11 @@ def render_reveal(s: GameSession) -> str:
     transcript = "".join(
         f'<div class="rl"><b>{ROLE_NAME.get(ln.actor, ln.actor.title())}</b> '
         f'{html.escape(ln.text)}</div>' for ln in s.case.lines)
-    truth = (f'<div class="rt"><div><b>You were:</b> {html.escape(cf.profession)}</div>'
-             f'<div><b>What you actually did:</b> {html.escape(cf.fault_plain)}</div></div>')
+    article = "An" if cf.profession[:1].lower() in "aeiou" else "A"
+    truth = (f'<div class="rt"><div><b>You were:</b> '
+             f'{html.escape(f"{article} {cf.profession}")}</div>'
+             f'<div><b>What you actually did:</b> '
+             f'{html.escape(_sentence(cf.fault_plain, period=True))}</div></div>')
     return ('<div class="files">'
             '<div class="col head jargon">What you heard</div>'
             '<div class="col head plain">The truth</div>'

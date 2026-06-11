@@ -182,6 +182,21 @@ def test_wrap_floor_ignores_early_wrap():
     assert s.turn >= max(4, contracts.TURN_BUDGET // 2)   # the floor held
 
 
+def test_empty_guess_scores_zero_without_model():
+    class NeverCalled(FakeEngine):
+        def score(self, *a):
+            raise AssertionError("model must not grade an empty plea")
+    import buzzwords.pipeline as pipeline
+    pipeline._engine = NeverCalled()
+    case = Case(case_file=CaseFile(profession="plumber", fault_plain="did x", facts=["f"]))
+    for guess in ("", "   ", "??", None):
+        score, rationale = pipeline.score_guess(case, guess)
+        assert score == 0 and "plea" in rationale.lower()
+    # a real guess still reaches the engine
+    pipeline._engine = FakeEngine()
+    assert pipeline.score_guess(case, "a plumber who did x") == (80, "close enough")
+
+
 def test_new_case_falls_back_on_leaky_facts():
     class Leaky(FakeEngine):
         def facts(self, style, profession, fault):
