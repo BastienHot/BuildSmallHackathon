@@ -94,9 +94,10 @@ def loading_card(frac: float, desc: str) -> str:
     pct = max(0, min(100, round(frac * 100)))
     return (
         '<div class="hero loading" style="min-height:240px"><div class="hero-content">'
-        '<div class="hero-emblem spin">⚖</div>'
+        '<div class="hero-emblem">⚖</div>'
         '<h1>Preparing your hearing</h1>'
         f'<p class="load-desc">{html.escape(desc)}</p>'
+        '<div class="spinner" role="status" aria-label="working"></div>'
         '<div class="loadbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" '
         f'aria-valuenow="{pct}"><div class="loadbar-fill" style="width:{pct}%"></div></div>'
         f'<div class="loadpct">{pct}%</div>'

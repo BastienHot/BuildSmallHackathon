@@ -132,7 +132,9 @@ footer { display:none !important; }
 
 /* ---------------- LOADING (pre-generation progress) ---------------- */
 .hero.loading .load-desc { min-height:2.6em; color:#eef1f6; font-weight:500; }
-.hero-emblem.spin { animation:spin 1.5s linear infinite; }
+.spinner { width:26px; height:26px; margin:4px auto 0; border-radius:50%;
+  border:3px solid rgba(255,255,255,.18); border-top-color:var(--accent);
+  animation:spin .9s linear infinite; }
 @keyframes spin { to { transform:rotate(360deg); } }
 .loadbar { width:min(420px,80%); height:12px; margin:14px auto 0;
   background:rgba(255,255,255,.14); border:1px solid var(--line); border-radius:999px; overflow:hidden; }
@@ -141,7 +143,7 @@ footer { display:none !important; }
   border-radius:999px; transition:width .35s ease; box-shadow:0 0 12px rgba(224,169,46,.6); }
 .loadpct { margin-top:8px; font-size:13px; font-weight:700; letter-spacing:.04em; color:var(--accent); }
 @media (prefers-reduced-motion:reduce) {
-  .hero-emblem.spin { animation:none; } .loadbar-fill { transition:none; }
+  .spinner { animation:none; } .loadbar-fill { transition:none; }
 }
 
 /* ---------------- EVIDENCE BOARD ----------------
