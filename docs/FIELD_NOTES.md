@@ -28,6 +28,11 @@ wearing small LoRA adapters: one distilled *director* adapter that writes the ca
 runs the trial beat by beat, and grades your plea; and one adapter per jargon style for
 the actors. One ~0.8 GB base, nine ~50 MB hats.
 
+<!-- 📷 IMAGE SLOT: docs/assets/img/hero_hearing.png — the hearing screen mid-game:
+     courtroom backdrop, a prosecutor speech bubble, and 2-3 exhibits pinned on the
+     evidence board below. This is THE shot; take it in the aviation court. -->
+![The hearing: jargon theater above, the evidence board below](assets/img/hero_hearing.png)
+
 This document is the project's field log, written the way we wish more project
 write-ups were written: not the sanitized version, but the actual sequence — including
 the night we shipped a game that passed every benchmark and was mathematically
@@ -95,6 +100,33 @@ and it is the first instance of the design rule this whole project runs on:
 > the profession" — is enforced deterministically in code. The models make it *good*;
 > they are never the only thing making it *correct*.
 
+Here is one complete beat of the game, end to end — every box on the right is the
+same 1B model wearing a different hat:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as Player
+    participant UI as Gradio UI
+    participant PL as Pipeline
+    participant G as Guards (code)
+    participant GM as Director<br/>(base + director LoRA, slot 0)
+    participant AC as Actor<br/>(base + style LoRA, slot 1)
+
+    PL->>GM: decide(brief, full transcript, beat n/10, forced fact?)
+    Note over GM: GBNF grammar forces JSON:<br/>speaker · beat · fact_index ·<br/>intensity · stage direction · wrap_up
+    GM-->>PL: {"next_speaker":"prosecutor", "beat_type":"plea", ...}
+    PL->>G: guard_speaker(decision, history)
+    Note over G: prosecutor cannot plead →<br/>remap to defense (seatbelt,<br/>fires on ~2% of beats)
+    G-->>PL: {"next_speaker":"defense", "beat_type":"plea"}
+    PL->>AC: act(stage direction, last 2 lines, fact text, intensity)
+    Note over AC: sees ONLY public info —<br/>cannot leak what it never had
+    AC-->>PL: "Objection! My client was operating in a dead vector…"
+    PL->>PL: leak check (word-boundary, profession tokens)
+    PL-->>UI: line + fact_index
+    UI-->>P: speech bubble + exhibit pinned to the evidence board
+```
+
 Three mechanisms implement the director side of that rule:
 
 **Grammars.** Every Game Master output is constrained by a `llama.cpp` GBNF grammar.
@@ -143,6 +175,33 @@ Part III, where the absence of exactly this mechanism is how we shipped actors t
 on a distribution the game never produces.
 
 ## Part II — One base, many hats: the architecture
+
+```mermaid
+flowchart LR
+    subgraph SPACE["🖥️ Free HF Space — 2 vCPU, no GPU"]
+        UI["Gradio UI<br/>(walkthrough: charges → hearing → plea → verdict)"]
+        PIPE["pipeline.py<br/>sampled truth · guards · fact scheduling · leak checks"]
+        CONTRACTS["contracts.py<br/>grammars · prompts · guards · SHAPE_VERSION<br/>(single source of truth)"]
+        subgraph LS["llama-server (subprocess, AVX2 build)"]
+            BASE["MiniCPM5-1B · Q4_K_M<br/>ONE resident copy"]
+            DLORA["director.lora.gguf<br/>facts + decide + score"]
+            SLORA["style-*.lora.gguf × 8<br/>corporate · aviation · ai · politics<br/>medical · gaming · sports · scifi"]
+        end
+        UI --> PIPE --> LS
+        CONTRACTS -.imported by.-> PIPE
+        BASE --- DLORA
+        BASE --- SLORA
+    end
+    subgraph OFFLINE["☁️ Offline only — Modal (never reaches a player)"]
+        TEACHER["Gemma 4 31B FP8<br/>teacher (vLLM, L40S)"]
+        TRAIN["bf16 LoRA training<br/>(A100, unsloth)"]
+        GATES["gate suite<br/>held-out bench · actor bench ·<br/>e2e self-rollouts + solvability"]
+        TEACHER --> TRAIN --> GATES
+    end
+    HUB["🤗 Hub<br/>base GGUF · 9 adapters · 64 agent traces"]
+    GATES -->|ship only if 9/9 PASS| HUB
+    HUB -->|pulled at startup| LS
+```
 
 At play time exactly one model is resident: **MiniCPM5-1B** (a clean
 `LlamaForCausalLM`), quantized to `Q4_K_M` GGUF, served by a **`llama-server`**
@@ -195,6 +254,14 @@ swing from compile flags, on identical hardware and identical weights. The build
 two-staged (compile in a throwaway image, copy one static binary into a slim Python
 image), the weights are pulled from the Hub at startup rather than committed, and a
 GitHub Action mirrors `main` to the Space so an ordinary `git push` deploys.
+
+<!-- 📷 IMAGE SLOT: docs/assets/img/jargon_picker.png — the Charges screen: title hero
+     + the 4×2 icon grid of jargon cards (one selected, gold). -->
+![Choosing your smokescreen: the jargon picker](assets/img/jargon_picker.png)
+
+<!-- 📷 IMAGE SLOT: docs/assets/img/loading_bar.png — the "Preparing your hearing"
+     card mid-generation ("Staging the hearing — beat 6 of 10…"). -->
+![The whole hearing pre-generates behind a beat-by-beat progress bar](assets/img/loading_bar.png)
 
 One design decision here was reversed by playtesting, and it is worth recording because
 the "smart" version lost. We first shipped *pipelined* generation: show beat 1 the
@@ -268,6 +335,21 @@ All training data is written offline by a teacher — **Gemma 4 31B-it in FP8** 
 L40S via vLLM on Modal — and never touches a player's machine. The teacher is brilliant
 and unreliable in exactly the ways you would expect, so the pipeline treats it like a
 talented contractor with strict acceptance criteria.
+
+```mermaid
+flowchart TD
+    POOLS["pools.py<br/>66 professions × 3 domain-matched faults<br/>jargon's domain EXCLUDED"]
+    SPEC["seeded case spec<br/>profession · fault · tone · disposition ·<br/>jargon-bank sample"]
+    T["Gemma 4 31B teacher<br/>(vLLM on Modal)"]
+    V{"validators<br/>(same contracts as runtime)"}
+    RETRY["corrective retry<br/>re-prompt WITH the rejection reason"]
+    DS["dataset.jsonl<br/>+ manifest.json<br/>seed · counts · reject histogram ·<br/>teacher ID · SHAPE_VERSION"]
+    TR["train_common.py<br/>REFUSES any manifest whose<br/>SHAPE_VERSION ≠ contracts'"]
+
+    POOLS -->|code samples the truth| SPEC --> T --> V
+    V -->|"beat/speaker mismatch · 3-in-a-row ·<br/>terse stage direction · profession leak"| RETRY --> T
+    V -->|kept &#40;200/200 per style, 298/300 games&#41;| DS --> TR
+```
 
 **Actors** (~14,700 examples). For each of eight styles plus a generic courtroom
 register: the teacher writes complete hearings — given a code-sampled hidden truth, a
@@ -369,6 +451,22 @@ by a single greedy trajectory, by out-of-distribution prompts, and by gating on 
 validity that the runtime grammar guarantees anyway. The rebuilt evaluation suite is
 designed by those scars, in three layers, each answering a different question.
 
+```mermaid
+flowchart TD
+    A["Layer 1 — held-out bench<br/>did the student learn the teacher?<br/>agreement 0.87 vs self-agreement ceiling 0.64"]
+    B["Layer 2 — actor bench<br/>did each adapter learn its voice?<br/>style lift · own-bank peak · fluency guard"]
+    C["Layer 3 — e2e gate (production stack)<br/>12 self-rollout games · guards live · real adapters"]
+    S{"SOLVABILITY<br/>31B teacher plays the player's exact view —<br/>must land in [30, 85]"}
+    SHIP["🚢 ship"]
+    FIX["iterate: guards → data → DAgger<br/>(in that order)"]
+
+    A --> C
+    B --> C
+    C -->|"8 machinery checks<br/>(leaks 0 · guards ≤2% · repetition ≤1% ·<br/>wrap 100% · facts 100% · scorer sep ≥45)"| S
+    S -->|in band| SHIP
+    S -->|out of band — VETO, even at 8/9| FIX --> C
+```
+
 **Layer 1 — Did the student learn the teacher?** A held-out benchmark on a
 disjoint-seed slice of teacher games (390 contexts), base versus LoRA, *without* the
 grammar (we measure learned behavior; the runtime grammar guarantees structure
@@ -426,6 +524,20 @@ points, and no amount of additional training toward the *same target* could fix 
 because the target itself was unsolvable. The models had faithfully learned a
 specification that did not contain a winnable game.
 
+```mermaid
+flowchart LR
+    FACT["hidden fact<br/>«no signature on the<br/>waiver was found»"]
+    ACTOR["actor<br/>(aviation style LoRA)"]
+    LINE["spoken line<br/>«the manifest lacks all necessary<br/>flight-signature verification»"]
+    SOLVER1["31B solver, transcript only<br/>🟥 'accountant / embezzlement'<br/>solvability 0/12"]
+    BOARD["📌 evidence board<br/>exhibit shown verbatim<br/>to the PLAYER"]
+    SOLVER2["31B solver, player view<br/>🟩 'tattoo artist / worked without consent'<br/>solvability 31.75, in band"]
+
+    FACT -->|"re-encoded INTO the smokescreen<br/>(intended aesthetic — anchor destroyed)"| ACTOR --> LINE --> SOLVER1
+    FACT ==>|"the fix: clues ALSO reach the player directly"| BOARD ==> SOLVER2
+    LINE -.->|still the entertainment layer| SOLVER2
+```
+
 The fix was therefore three-part, and only one part touched a model:
 
 1. **The evidence board.** Released clues now surface to the player directly, as
@@ -443,6 +555,10 @@ The fix was therefore three-part, and only one part touched a model:
    before reaching the chute." Gripping arms, payout, prize chute: nameable.
 3. **Gate on the player's actual view.** The solver now reads exhibits + hearing,
    because that is what the player reads.
+
+<!-- 📷 IMAGE SLOT: docs/assets/img/verdict_reveal.png — the verdict screen: the big
+     score %, the verdict word, and the two-column "What you heard / The truth" reveal. -->
+![The verdict: what you heard versus what you actually did](assets/img/verdict_reveal.png)
 
 One director regeneration and retrain later (the full chain — data, held-out slice,
 training, labels, benchmark, GGUF conversion, gate — runs unattended in about three
