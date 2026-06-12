@@ -1,16 +1,17 @@
 """Synthetic data generation for the ACTOR LoRAs, on Modal GPU (offline teacher).
 
-A big teacher (Gemma 4 31B-it, FP8) writes courtroom transcripts that are exploded into
-ShareGPT examples in the EXACT runtime call shape from buzzwords.contracts (the single
-source of truth — train shape == runtime shape by construction). Two datasets:
+SHAPE 3.0: actors are meaning-preserving style TRANSLATORS. The teacher writes a short
+courtroom hearing in PLAIN English, then translates each line into the target register;
+each (plain, styled) pair becomes one training example in the EXACT runtime call shape
+(buzzwords.contracts.actor_system / actor_user). Two datasets:
 
-  1. legal_generic.jsonl -- courtroom register, NO domain jargon (stage-1 base).
-  2. style_<style>.jsonl  -- transcripts saturated with one jargon STYLE over varied
-     hidden professions/faults SAMPLED FROM buzzwords.pools (smokescreen by construction).
+  1. legal_generic.jsonl -- plain line -> formal courtroom rhetoric (stage-1 base).
+  2. style_<style>.jsonl -- plain line -> dense {style} jargon, meaning intact.
 
-Each actor example carries: role+style system, and a user turn with the last 1-2 public
-transcript lines, an optional oblique fact to weave in, and the stage direction —
-exactly what buzzwords.engine.act sends (REBUILD_REVIEW.md §10.2).
+Pair-level validation: leak-free on both sides, length ratio in band ("without
+overdoing it"), and >=1 shared content anchor so concrete details survive the metaphor
+("without losing the meaning"). Bad pairs are dropped; a transcript needs >=4 good
+pairs to be kept.
 
 Every run writes <name>.manifest.json (seed, counts, rejects, teacher, SHAPE_VERSION)
 and stamps group_id (one per transcript) on every example for leak-free splits.
@@ -63,37 +64,35 @@ def _make_spec(rng: random.Random, style: str, terms_pool: list[str]) -> dict:
     return {
         "style": style, "profession": profession, "fault": fault,
         "tone": rng.choice(pools.TONES), "disposition": rng.choice(pools.DISPOSITIONS),
-        "n_turns": n_turns, "max_tokens": 180 * n_turns + 350,
+        "n_turns": n_turns, "max_tokens": 260 * n_turns + 350,
         "terms": rng.sample(terms_pool, k) if k else [],
     }
 
 
 def _build_prompt(spec: dict) -> str:
+    """SHAPE 3.0: plain hearing + per-line translation into the target register."""
     style = spec["style"]
-    register = (f"saturated with dense {style} jargon mixed with judicial register; the "
-                f"speakers talk almost entirely in {style} buzzwords"
-                if style else "in plain professional English with no domain slang")
-    unrelated = f" (UNRELATED to the {style} jargon they speak)" if style else ""
-    terms = (f"Weave several of these {style} terms in naturally (vary which you use; do "
-             f"NOT use all, do NOT just list them): {', '.join(spec['terms'])}.\n"
-             if spec.get("terms") else "")
+    register = (f"dense {style} jargon (judicial cadence kept underneath)"
+                if style else "elevated, formal courtroom rhetoric — still plain English")
+    terms = (f"In the styled versions, weave in several of these {style} terms naturally "
+             f"(vary which you use; do NOT use all, do NOT just list them): "
+             f"{', '.join(spec['terms'])}.\n" if spec.get("terms") else "")
     return (
-        f"Write a {spec['n_turns']}-turn courtroom exchange {register}. "
+        f"Write a {spec['n_turns']}-turn courtroom exchange in PLAIN professional English. "
         f"Roles cycle through judge, prosecutor and defense; consecutive lines REACT to "
-        f"each other (rebut, concede, redirect) without repeating phrasing. "
-        f"Overall tone: {spec['tone']}. The defendant comes across as {spec['disposition']}.\n"
-        f"HIDDEN TRUTH, never stated in plain words: the defendant is "
-        f"{contracts.article(spec['profession'])} {spec['profession']} who {spec['fault']}{unrelated}.\n"
+        f"each other (rebut, concede, redirect); every line is concrete (documents, "
+        f"timings, witnesses), 1-2 sentences. Overall tone: {spec['tone']}; the defendant "
+        f"comes across as {spec['disposition']}.\n"
+        f"HIDDEN TRUTH the case is about, never stated in plain words: the defendant is "
+        f"{contracts.article(spec['profession'])} {spec['profession']} who {spec['fault']}.\n"
         f"These word(s) must NOT appear anywhere: "
         f"{', '.join(repr(w) for w in pools.banned_words(spec['profession']))}.\n"
-        f"First invent 3-5 short oblique FACTS (concrete clues — logs, records, witnesses — "
-        f"that hint at the real job and act without naming them). Then, for EACH line, give "
-        f"the oblique stage_direction a director would hand the actor, an intensity 1-5, and "
-        f"fact_index: the index of the fact that line weaves in, or null.\n"
-        f"Spread every fact across the transcript at least once.\n"
-        f'Return ONLY JSON: {{"facts": ["..."], "turns": [{{"role": "judge|prosecutor|defense", '
-        f'"intensity": 3, "stage_direction": "<oblique cue>", "fact_index": 0, '
-        f'"text": "<the in-character line>"}}]}}.'
+        f"THEN translate each line into {register}. The translation must KEEP THE "
+        f"MEANING: every concrete detail (objects, actions, numbers, documents) stays "
+        f"recognizable; no claims added or dropped; about the same length — do NOT "
+        f"overdo it.\n{terms}"
+        f'Return ONLY JSON: {{"turns": [{{"role": "judge|prosecutor|defense", '
+        f'"plain": "<the plain line>", "styled": "<the same line in the register>"}}]}}.'
     )
 
 
@@ -136,48 +135,63 @@ def _parse_obj(text: str):
     return d if isinstance(d, dict) else None
 
 
+def _good_pair(plain: str, styled: str, profession: str) -> str | None:
+    """Pair-level acceptance ('keep the meaning, don't overdo it'). None = good."""
+    pw, sw = plain.split(), styled.split()
+    if len(pw) < 5 or len(sw) < 4:
+        return "too short"
+    if plain.lower() == styled.lower():
+        return "untranslated"
+    if not (0.5 <= len(sw) / len(pw) <= 2.2):
+        return "length ratio (overdone)"
+    if contracts.leaks(plain + " " + styled, profession):
+        return "profession leaked"
+    # Meaning anchor: at least one concrete content word must survive the restyling
+    # (pairs whose plain side has no >=5-char content word are exempt — greetings etc.)
+    anchors = {w.strip(".,!?;:'\"").lower() for w in pw if len(w.strip(".,!?;:'\"")) >= 5}
+    if anchors and not any(a in styled.lower() for a in anchors):
+        return "no surviving anchor (meaning lost)"
+    return None
+
+
 def _validate(spec: dict, text: str):
-    """-> (facts, turns, reject_reason|None). Leak check covers facts, stage directions
-    AND lines (everything a model will see or say)."""
+    """-> (pairs, reject_reason|None). Bad pairs are dropped; the transcript must keep
+    >=4 good (role, plain, styled) pairs to count."""
+    from collections import Counter
     obj = _parse_obj(text)
     if obj is None:
-        return None, None, "unparseable"
-    facts, turns = obj.get("facts"), obj.get("turns")
-    if not isinstance(facts, list) or not (contracts.MIN_FACTS <= len(facts) <= contracts.MAX_FACTS):
-        return None, None, "bad facts"
+        return None, "unparseable"
+    turns = obj.get("turns")
     if not isinstance(turns, list) or not (4 <= len(turns) <= 14):
-        return None, None, f"turn count {len(turns) if isinstance(turns, list) else '?'}"
-    blob = " ".join(str(f) for f in facts)
+        return None, f"turn count {len(turns) if isinstance(turns, list) else '?'}"
+    pairs, drops = [], Counter()
     for t in turns:
         if not isinstance(t, dict):
-            return None, None, "bad turn shape"
+            return None, "bad turn shape"
         role = (t.get("role") or "").lower()
-        if role not in contracts.SPEAKERS or not str(t.get("text", "")).strip():
-            return None, None, f"bad role/text ({role})"
-        blob += " " + str(t.get("stage_direction", "")) + " " + str(t.get("text", ""))
-    if contracts.leaks(blob, spec["profession"]):
-        return None, None, "profession leaked"
-    return [str(f).strip() for f in facts], turns, None
+        plain = str(t.get("plain", "")).strip()
+        styled = str(t.get("styled", "")).strip()
+        if role not in contracts.SPEAKERS:
+            return None, f"bad role ({role})"
+        why = _good_pair(plain, styled, spec["profession"])
+        if why is None:
+            pairs.append((role, plain, styled))
+        else:
+            drops[why] += 1
+    if len(pairs) < 4:
+        worst = drops.most_common(1)[0][0] if drops else "?"
+        return None, f"<4 good pairs (mostly: {worst})"
+    return pairs, None
 
 
-def _to_examples(facts: list[str], turns: list[dict], spec: dict, group_id: str) -> list[dict]:
-    """One example per line, in the EXACT runtime shape (engine.act): role+style system,
-    actor_user(stage_direction, intensity, fact, last-2-lines context). The actor never
-    sees the hidden truth — in training or at runtime."""
-    out, transcript = [], []
-    for t in turns:
-        role = t["role"].lower()
-        sd = str(t.get("stage_direction", "")).strip() or "Open the hearing."
-        intensity = t.get("intensity") if t.get("intensity") in (1, 2, 3, 4, 5) else 3
-        fi = t.get("fact_index")
-        fact = facts[fi] if isinstance(fi, int) and 0 <= fi < len(facts) else None
-        out.append({"group_id": group_id, "conversations": [
-            {"role": "system", "content": contracts.actor_system(role, spec["style"] or None)},
-            {"role": "user", "content": contracts.actor_user(sd, intensity, fact, transcript[-2:])},
-            {"role": "assistant", "content": str(t["text"]).strip()},
-        ]})
-        transcript.append((role, str(t["text"]).strip()))
-    return out
+def _to_examples(pairs: list[tuple[str, str, str]], spec: dict, group_id: str) -> list[dict]:
+    """One example per pair, in the EXACT runtime shape (engine.act): translator system,
+    actor_user(plain line). The actor never sees the hidden truth — ever."""
+    return [{"group_id": group_id, "conversations": [
+        {"role": "system", "content": contracts.actor_system(role, spec["style"] or None)},
+        {"role": "user", "content": contracts.actor_user(plain)},
+        {"role": "assistant", "content": styled},
+    ]} for role, plain, styled in pairs]
 
 
 def _corrective(prompt: str, profession: str, reason: str) -> str:
@@ -204,9 +218,9 @@ def make_dataset(style: str | None, n: int, base_seed: int = 0):
                                                      [metas[i] for i in pending])
         still = []
         for idx, text in zip(pending, raw):
-            facts, turns, reason = _validate(specs[idx], text)
+            pairs, reason = _validate(specs[idx], text)
             if reason is None:
-                rows.extend(_to_examples(facts, turns, specs[idx],
+                rows.extend(_to_examples(pairs, specs[idx],
                                          group_id=f"{style or 'generic'}-{base_seed + idx}"))
                 kept += 1
             else:

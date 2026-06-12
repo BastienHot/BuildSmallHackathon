@@ -193,3 +193,16 @@ footer { display:none !important; }
 @media (prefers-reduced-motion:reduce) {
   .note:last-child { animation:none; } .note:hover { transition:none; }
 }
+
+/* ---------------- DECODED TRANSCRIPT (reveal, SHAPE 3.0) ---------------- */
+.decode { margin-top:12px; border:1px solid var(--line); border-radius:12px;
+  background:var(--panel) !important; padding:12px 14px; }
+.decode-title { font-size:11px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.12em; color:var(--accent) !important; margin-bottom:8px; }
+.decode-row { padding:8px 2px; border-top:1px solid rgba(58,64,77,.55); }
+.decode-row:first-of-type { border-top:none; }
+.decode-who { font-size:10.5px; font-weight:800; text-transform:uppercase;
+  letter-spacing:.08em; color:var(--accent2) !important; margin-bottom:2px; }
+.decode-jargon { color:var(--text) !important; font-size:14.5px; line-height:1.45; }
+.decode-plain { color:#9fd49f !important; font-size:13.5px; line-height:1.4;
+  margin-top:3px; font-style:italic; }

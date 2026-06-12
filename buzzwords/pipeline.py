@@ -61,7 +61,7 @@ def new_case(jargon_style: str) -> Case:
     facts: list[str] | None = None
     for attempt in range(2):
         try:
-            cand = _eng().facts(jargon_style, profession, fault)
+            cand = _eng().facts(profession, fault)
         except Exception:
             log.exception("facts generation failed (attempt %d)", attempt + 1)
             continue
@@ -86,7 +86,9 @@ def next_turn(session: GameSession) -> Line | None:
     if case is None or session.generation_finished:
         return None
     cf, budget = case.case_file, case.case_file.turn_budget
-    transcript = [(l.actor, l.text) for l in case.lines]
+    # The director lives entirely in the PLAIN layer (it wrote these lines; its training
+    # transcripts are plain) — the jargon layer never feeds back into direction.
+    transcript = [(l.actor, l.plain_text or l.text) for l in case.lines]
     history = [l.actor for l in case.lines]
     forced = contracts.forced_fact(len(cf.facts), case.facts_released, session.turn, budget)
 
@@ -95,14 +97,20 @@ def next_turn(session: GameSession) -> Line | None:
         try:
             d = _eng().decide(cf.profession, cf.fault_plain, cf.facts, transcript,
                               session.turn, budget, forced)
+            plain = d["line"].strip()
+            if contracts.leaks(plain, cf.profession):
+                raise ValueError(f"director's plain line leaks the profession: {plain!r}")
             speaker, beat = contracts.guard_speaker(d["next_speaker"], d["beat_type"],
                                                     history, session.turn, budget)
             fi = forced if forced is not None else d.get("fact_index")
             if fi is not None and not (0 <= fi < len(cf.facts)):
                 fi = None
-            fact_text = cf.facts[fi] if fi is not None else None
-            text = _eng().act(speaker, case.jargon_style, d["stage_direction"],
-                              d["intensity"], fact_text, transcript[-2:])
+            # SHAPE 3.0: the actor TRANSLATES the plain line into the style's jargon.
+            text = _eng().act(speaker, case.jargon_style, plain)
+            if contracts.leaks(text, cf.profession):
+                # The plain line is leak-checked, so it is always a safe fallback.
+                log.warning("Jargon line leaked; falling back to the plain line")
+                text = plain
             break
         except Exception as e:  # noqa: BLE001 — retry any runtime failure
             last_err = e
@@ -113,7 +121,7 @@ def next_turn(session: GameSession) -> Line | None:
 
     if fi is not None:
         case.facts_released.add(fi)
-    line = Line(actor=speaker, beat_type=beat, text=text, fact_index=fi)
+    line = Line(actor=speaker, beat_type=beat, text=text, plain_text=plain, fact_index=fi)
     case.lines.append(line)
     session.turn += 1
     floor = max(4, budget // 2)   # ignore an over-eager wrap_up; guarantee a real trial

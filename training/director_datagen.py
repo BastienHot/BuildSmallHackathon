@@ -51,20 +51,22 @@ GUESS_BUCKETS = ["spot_on", "close_paraphrase", "right_job_wrong_charge",
                  "right_charge_wrong_job", "plausible_but_wrong", "vague", "totally_unrelated"]
 
 # Hand-written GOLD facts exemplars, sampled per prompt (pattern, not template).
+# Calibrated to the clue band: one inference step from each — never naming the job,
+# never so generic any job would fit ("smart, not too obvious, not too hard").
 FEWSHOTS = [
-    ("corporate", "marine biologist", "released unverified findings a rival lab later had to retract",
+    ("marine biologist", "released unverified findings a rival lab later had to retract",
      ["a sample set went missing before peer review",
       "the tide tables in the appendix were back-dated",
       "a junior was credited, then quietly removed"]),
-    ("aviation", "pastry chef", "served a wedding cake he knew had spoiled rather than refund the order",
+    ("pastry chef", "served a wedding cake he knew had spoiled rather than refund the order",
      ["the cold-storage log had a six-hour gap",
       "two guests filed the same complaint that evening",
       "the disposal bin was emptied hours early"]),
-    ("gaming", "locksmith", "kept copies of a client's keys and let himself in uninvited",
+    ("locksmith", "kept copies of a client's keys and let himself in uninvited",
      ["a spare blank was cut after hours",
       "entry used the correct code, never forced",
       "nothing was taken, but a private drawer had been rifled"]),
-    ("medical", "wedding photographer", "deleted the only copies of a wedding she was paid to cover and blamed the gear",
+    ("wedding photographer", "deleted the only copies of a ceremony she was paid to cover and blamed the gear",
      ["the backup drive was reformatted the next morning",
       "the contract had promised redundant storage",
       "the client was told it was a hardware fault"]),
@@ -84,8 +86,8 @@ HF_CACHE = "/root/.cache/huggingface"
 # --------------------------------------------------------------- prompt helpers
 def _fewshot_block(rng: random.Random, k: int = 2) -> str:
     lines = []
-    for style, prof, fault, facts in rng.sample(FEWSHOTS, k):
-        lines.append(f'  ({style} jargon; hidden: a {prof} who {fault}): '
+    for prof, fault, facts in rng.sample(FEWSHOTS, k):
+        lines.append(f'  (hidden: a {prof} who {fault}): '
                      + json.dumps({"facts": facts}, ensure_ascii=False))
     return "\n".join(lines)
 
@@ -101,50 +103,55 @@ def _spec(rng: random.Random, style: str) -> dict:
             "budget": contracts.TURN_BUDGET}
 
 
+_CLUE_BAND = (
+    "Calibrate each clue to ONE inference step: a sharp player should be able to NAME "
+    "the job and the act from the three together — never from any single clue, and never "
+    "have a clue so generic it could fit any job. At least one clue evokes the "
+    "distinctive tools, materials or workplace of the job; never restate the charge's "
+    "own words.")
+
+
 def _facts_prompt(spec: dict, rng: random.Random) -> str:
     return (
         "Examples of well-formed oblique FACTS for hidden cases (each fact is a concrete "
         f"clue that hints at the real job and act without naming them):\n{_fewshot_block(rng)}\n\n"
-        f"The facts must be SOLVABLE: at least one evokes the distinctive tools, materials "
-        f"or workplace of the job; read together, a sharp guesser could NAME the job and "
-        f"the act (while no single fact names them).\n"
+        f"{_CLUE_BAND}\n"
         f"Now write the facts for a NEW case (do NOT reuse the examples). Hidden truth: the "
         f"defendant is {contracts.article(spec['profession'])} {spec['profession']} who "
-        f"{spec['fault']}. The courtroom speaks {spec['style']} jargon — a SMOKESCREEN "
-        f"unrelated to the case.\n"
+        f"{spec['fault']}.\n"
         f"These word(s) must NOT appear anywhere: {_banned(spec['profession'])}.\n"
-        f'Return ONLY JSON {{"facts": ["<{contracts.MIN_FACTS}-{contracts.MAX_FACTS} oblique clues>"]}}.')
+        f'Return ONLY JSON {{"facts": ["<exactly {contracts.N_FACTS} oblique clues>"]}}.')
 
 
 def _game_prompt(spec: dict, rng: random.Random) -> str:
+    # SHAPE 3.0: the whole hearing is written in PLAIN professional English — no jargon
+    # anywhere. The jargon is a separate translation layer the director never sees.
     return (
         "Examples of well-formed oblique FACTS — note how each clue hints at the real job "
         f"without ever naming it:\n{_fewshot_block(rng)}\n\n"
-        f"Now design and DIRECT a NEW case. FIXED hidden truth (do NOT change it; NEVER "
-        f"write it in plain words anywhere): the defendant is "
-        f"{contracts.article(spec['profession'])} {spec['profession']} who {spec['fault']}.\n"
+        f"Now design and DIRECT a NEW case, entirely in PLAIN professional courtroom "
+        f"English. FIXED hidden truth (do NOT change it; NEVER write it in plain words "
+        f"anywhere): the defendant is {contracts.article(spec['profession'])} "
+        f"{spec['profession']} who {spec['fault']}.\n"
         f"These word(s) must NOT appear anywhere: {_banned(spec['profession'])}.\n"
-        f"The courtroom speaks dense {spec['style']} jargon — a SMOKESCREEN unrelated to the "
-        f"case. Tone: {spec['tone']}; the defendant comes across as {spec['disposition']}.\n"
-        f"First write {contracts.MIN_FACTS}-{contracts.MAX_FACTS} oblique facts — SOLVABLE "
-        f"ones: at least one evokes the distinctive tools, materials or workplace of the "
-        f"job, and read together they would let a sharp guesser NAME the job and the act "
-        f"(while no single fact names them). Then run "
-        f"EXACTLY {spec['budget']} beats: open, build evidence, escalate, CONVERGE to a "
-        f"verdict — set wrap_up=true only on the final 1-2 beats. Beats must alternate "
-        f"speakers naturally (NEVER the same speaker 3 times in a row; the defense answers "
-        f"the prosecution). beat_type MUST fit the speaker: opening=judge|prosecutor; charge=prosecutor; "
-        f"plea=defense; objection=defense|prosecutor; escalate=prosecutor|judge; "
+        f"Tone: {spec['tone']}; the defendant comes across as {spec['disposition']}.\n"
+        f"First write exactly {contracts.N_FACTS} oblique facts. {_CLUE_BAND}\n"
+        f"Then run EXACTLY {spec['budget']} beats: open, build evidence, escalate, "
+        f"CONVERGE to a verdict — set wrap_up=true only on the final 1-2 beats. Beats "
+        f"must alternate speakers naturally (NEVER the same speaker 3 times in a row; "
+        f"the defense answers the prosecution). beat_type MUST fit the speaker: "
+        f"opening=judge|prosecutor; charge=prosecutor; plea=defense; "
+        f"objection=defense|prosecutor; escalate=prosecutor|judge; "
         f"evidence/cross_examine=prosecutor|defense; closing/exchange=anyone. "
         f"Surface EVERY fact at least once via fact_index.\n"
         f"Each beat: next_speaker (judge|prosecutor|defense), beat_type (one of "
-        f"{', '.join(contracts.BEATS)}), fact_index (int or null), intensity 1-5, a "
-        f"stage_direction — ONE FULL imperative sentence (8-15 words) a director would "
-        f"whisper to the actor, oblique, in {spec['style']} terms, never naming job/charge — "
-        f"wrap_up, and the resulting in-jargon line.\n"
+        f"{', '.join(contracts.BEATS)}), fact_index (int or null), intensity 1-5, the "
+        f"spoken line — 1-2 sentences of plain, concrete courtroom English that argues "
+        f"the case and reacts to the previous lines; when fact_index is set, the line "
+        f"MUST convey that fact's content — and wrap_up.\n"
         f'Return ONLY JSON: {{"facts": ["..."], "turns": [{{"next_speaker": "...", '
-        f'"beat_type": "...", "fact_index": null, "intensity": 3, "stage_direction": "...", '
-        f'"wrap_up": false, "line": "..."}}]}}.')
+        f'"beat_type": "...", "fact_index": null, "intensity": 3, '
+        f'"line": "...", "wrap_up": false}}]}}.')
 
 
 def _guess(rng: random.Random, spec: dict, bucket: str) -> str:
@@ -209,13 +216,27 @@ def _ex(system: str, user: str, assistant_obj: dict, group_id: str) -> dict:
         {"role": "assistant", "content": json.dumps(assistant_obj, ensure_ascii=False)}]}
 
 
+def _too_obvious(fact: str, fault: str) -> bool:
+    """Clue-band guard ('not too obvious'): a clue that restates most of the charge's
+    own content words gives the act away with zero inference."""
+    content = {w for w in fault.lower().split() if len(w) >= 5}
+    if not content:
+        return False
+    hits = sum(1 for w in content if w in fact.lower())
+    return hits / len(content) > 0.5
+
+
 def _clean_facts(obj: dict, spec: dict):
     facts = obj.get("facts")
-    if not isinstance(facts, list) or not (contracts.MIN_FACTS <= len(facts) <= contracts.MAX_FACTS):
+    if not isinstance(facts, list) or len(facts) != contracts.N_FACTS:
         return None, "bad facts shape"
     facts = [str(f).strip() for f in facts]
     if any(contracts.leaks(f, spec["profession"]) for f in facts):
         return None, "profession leaked in facts"
+    if any(_too_obvious(f, spec["fault"]) for f in facts):
+        return None, "fact restates the charge (too obvious)"
+    if any(not (4 <= len(f.split()) <= 22) for f in facts):
+        return None, "fact length out of band"
     return facts, None
 
 
@@ -227,7 +248,7 @@ def _facts_validate(spec: dict, text: str):
     if reason:
         return [], reason
     ex = _ex(contracts.FACTS_SYS,
-             contracts.facts_user(spec["style"], spec["profession"], spec["fault"]),
+             contracts.facts_user(spec["profession"], spec["fault"]),
              {"facts": facts}, group_id=spec["group_id"])
     return [ex], None
 
@@ -249,10 +270,10 @@ def _game_validate(spec: dict, text: str):
     released: set[int] = set()
     for i, t in enumerate(turns):
         spk, beat = t.get("next_speaker"), t.get("beat_type")
-        sd, line = str(t.get("stage_direction", "")).strip(), str(t.get("line", "")).strip()
+        line = str(t.get("line", "")).strip()
         intensity, fi = t.get("intensity"), t.get("fact_index")
         if spk not in contracts.SPEAKERS or beat not in contracts.BEATS \
-                or intensity not in (1, 2, 3, 4, 5) or not line:
+                or intensity not in (1, 2, 3, 4, 5):
             return [], f"bad turn {i} ({spk}/{beat}/{intensity})"
         # Targets must respect the SAME invariants the runtime guard enforces — otherwise
         # we train the model into the seatbelt (the smoke test caught judge/objection).
@@ -260,17 +281,28 @@ def _game_validate(spec: dict, text: str):
             return [], f"beat/speaker mismatch turn {i} ({spk}/{beat})"
         if i >= 2 and transcript[-1][0] == transcript[-2][0] == spk:
             return [], f"same speaker 3x at turn {i}"
-        if len(sd.split()) < 5:
-            return [], f"terse stage_direction turn {i} ({sd!r})"
-        if contracts.leaks(sd + " " + line, spec["profession"]):
+        if len(line.split()) < 5:
+            return [], f"terse line turn {i} ({line!r})"
+        if contracts.leaks(line, spec["profession"]):
             return [], f"profession leaked in turn {i}"
         if not (isinstance(fi, int) and 0 <= fi < len(facts)):
             fi = None
+        # SHAPE 3.0: the line IS the content — when a fact is claimed, the line must
+        # actually carry it (>=1 shared content word). Reject empty claims.
+        if fi is not None:
+            anchors = {w for w in facts[fi].lower().split() if len(w) >= 4}
+            if anchors and not any(w in line.lower() for w in anchors):
+                return [], f"line does not carry claimed fact (turn {i})"
         forced = contracts.forced_fact(len(facts), released, i, budget)
-        if forced is not None:
-            fi = forced       # the target obeys the force nudge the prompt carries
+        if forced is not None and fi != forced:
+            # We cannot rewrite fi post-hoc anymore: the line was not written to carry
+            # the forced fact. Skip the decide example, keep the transcript flowing.
+            if fi is not None:
+                released.add(fi)
+            transcript.append((spk, line))
+            continue
         decision = {"next_speaker": spk, "beat_type": beat, "fact_index": fi,
-                    "intensity": int(intensity), "stage_direction": sd,
+                    "intensity": int(intensity), "line": line,
                     "wrap_up": bool(t.get("wrap_up", False))}
         user = contracts.gm_user(spec["profession"], spec["fault"], facts,
                                  transcript, i, budget, forced)
@@ -339,7 +371,7 @@ def make_dataset(task: str, n: int, base_seed: int = 0, facts_extra: int = 0,
                     f'"beat_type": one of {"|".join(contracts.BEATS)}, '
                     '"fact_index": <index of the fact to surface, or null>, '
                     '"intensity": <integer 1-5>, '
-                    '"stage_direction": "<one oblique imperative sentence>", '
+                    '"line": "<the spoken line, 1-2 sentences of plain courtroom English>", '
                     '"wrap_up": true|false}')
                    for u in contexts]
         metas = [{"max_tokens": 160, "seed": base_seed + i, "temp": 0.7}

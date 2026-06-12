@@ -116,7 +116,7 @@ def play_games(n: int, base_seed: int = 0) -> list[dict]:
         for _ in range(2):   # mirror pipeline.new_case: leak-check + retry + fallback
             try:
                 cand = jcall(gm, contracts.FACTS_SYS,
-                             contracts.facts_user(style, profession, fault),
+                             contracts.facts_user(profession, fault),
                              contracts.FACTS_GRAMMAR, 350, 0.9)["facts"]
             except Exception:  # noqa: BLE001
                 continue
@@ -146,18 +146,20 @@ def play_games(n: int, base_seed: int = 0) -> list[dict]:
             fi = forced if forced is not None else d.get("fact_index")
             if fi is not None and not (0 <= fi < len(facts)):
                 fi = None
+            plain = str(d["line"]).strip()
+            # SHAPE 3.0: the actor TRANSLATES the director's plain line into jargon.
             line_obj = actor_model(style).create_chat_completion(
                 messages=[{"role": "system", "content": contracts.actor_system(speaker, style)},
-                          {"role": "user", "content": contracts.actor_user(
-                              d["stage_direction"], d["intensity"],
-                              facts[fi] if fi is not None else None, transcript[-2:])}],
-                max_tokens=120, temperature=0.9, repeat_penalty=1.15)
+                          {"role": "user", "content": contracts.actor_user(plain)}],
+                max_tokens=120, temperature=0.8, repeat_penalty=1.15)
             line = line_obj["choices"][0]["message"]["content"].strip()
+            if contracts.leaks(line, profession):   # mirror the runtime fallback
+                line = plain
             if fi is not None:
                 released.add(fi)
-            beats.append({"raw": d, "speaker": speaker, "beat": beat,
+            beats.append({"raw": d, "speaker": speaker, "beat": beat, "plain": plain,
                           "fact_index": fi, "guarded": guarded, "line": line})
-            transcript.append((speaker, line))
+            transcript.append((speaker, plain))   # the DIRECTOR conditions on plain
             history.append(speaker)
             if d["wrap_up"] and turn + 1 >= max(4, budget // 2):
                 wrapped = True
@@ -348,7 +350,7 @@ def _aggregate(games: list[dict], solver: list[dict] | None) -> dict:
     leak_lines = 0
     for g in games:
         for i, b in enumerate(g["beats"]):
-            if contracts.leaks(b["line"] + " " + b["raw"]["stage_direction"], g["profession"]):
+            if contracts.leaks(b["line"] + " " + b.get("plain", ""), g["profession"]):
                 leak_lines += 1
             if i:
                 a, c = grams(g["beats"][i - 1]["line"]), grams(b["line"])

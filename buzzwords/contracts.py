@@ -11,7 +11,8 @@ sees or must emit; datagen stamps it into manifests and training refuses a misma
 
 from __future__ import annotations
 
-SHAPE_VERSION = "2.1"   # 2.1: facts must collectively identify the job (solvability fix)
+SHAPE_VERSION = "3.0"   # 3.0: director WRITES the plain line; actors TRANSLATE it into
+                        # jargon (meaning-preserving style transfer); exactly 3 facts.
 
 # ---------------------------------------------------------------------------
 # Enums and budgets
@@ -23,7 +24,8 @@ STYLES = ["corporate", "aviation", "ai", "politics", "medical", "gaming", "sport
 
 TURN_BUDGET = 10          # one fixed budget; the difficulty axis was removed (§12)
 WRAP_PRESSURE_AT = 2      # start nudging the GM to converge this many beats from the end
-MIN_FACTS, MAX_FACTS = 3, 5
+N_FACTS = 3               # EXACTLY three clue facts (player decision: fixed, not random)
+MIN_FACTS = MAX_FACTS = N_FACTS
 
 # Beat -> speakers allowed to deliver it. The GM decision is remapped through this in
 # code (deterministic guard, §13.2): a prosecutor must never deliver the defense's plea.
@@ -50,16 +52,17 @@ _STR = (r'string ::= "\"" ([^"\\\x00-\x1F\x7F] | "\\" (["\\/bfnrt] | "u" [0-9a-f
 # The director writes ONLY the oblique facts; profession/fault are sampled in code (§13.4).
 FACTS_GRAMMAR = (r"""
 root ::= "{" ws "\"facts\":" ws facts ws "}"
-facts ::= "[" ws string (ws "," ws string){2,4} ws "]"
+facts ::= "[" ws string ws "," ws string ws "," ws string ws "]"
 """ + _STR)
 
-# One beat from a finite deck. fact_index points into the case file's facts (or null):
-# the runtime hands that fact's verbatim text to the actor (§13.5 clue channel).
+# One beat from a finite deck — INCLUDING the spoken line, in PLAIN English (SHAPE 3.0):
+# the director authors the content; the actor only restyles it. fact_index points into
+# the case file's facts; when set, the line must carry that fact's content (§13.5).
 DECISION_GRAMMAR = (r"""
-root ::= "{" ws "\"next_speaker\":" ws speaker ws "," ws "\"beat_type\":" ws beat ws "," ws "\"fact_index\":" ws factidx ws "," ws "\"intensity\":" ws intensity ws "," ws "\"stage_direction\":" ws string ws "," ws "\"wrap_up\":" ws bool ws "}"
+root ::= "{" ws "\"next_speaker\":" ws speaker ws "," ws "\"beat_type\":" ws beat ws "," ws "\"fact_index\":" ws factidx ws "," ws "\"intensity\":" ws intensity ws "," ws "\"line\":" ws string ws "," ws "\"wrap_up\":" ws bool ws "}"
 speaker ::= "\"judge\"" | "\"prosecutor\"" | "\"defense\""
 beat ::= "\"opening\"" | "\"charge\"" | "\"evidence\"" | "\"objection\"" | "\"escalate\"" | "\"plea\"" | "\"cross_examine\"" | "\"closing\"" | "\"exchange\""
-factidx ::= "null" | "0" | "1" | "2" | "3" | "4"
+factidx ::= "null" | "0" | "1" | "2"
 intensity ::= "1" | "2" | "3" | "4" | "5"
 bool ::= "true" | "false"
 """ + _STR)
@@ -82,31 +85,33 @@ FACTS_SYS = ("Write the oblique clue facts for a hidden courtroom case. Each fac
 
 GM_SYS = ("You are the GAME MASTER directing a short courtroom debate. Each beat, pick who "
           "speaks, the beat type, which numbered fact to surface next (fact_index, or null), "
-          "an intensity, and a short oblique stage direction. Output ONLY the requested "
-          "JSON. Never reveal the profession or charge in plain words.")
+          "an intensity, and WRITE that speaker's line yourself in plain professional "
+          "courtroom English (1-2 sentences) — argue the case concretely, reacting to the "
+          "previous lines. When fact_index is set, the line must carry that fact's content. "
+          "Never name the defendant's profession or quote the charge outright. Output ONLY "
+          "the requested JSON.")
 
-ROLE_SYS = {
-    "judge": "You are the JUDGE. Speak with calm authority in dense {style} jargon.",
-    "prosecutor": "You are the PROSECUTOR. Press the case hard in dense {style} jargon.",
-    "defense": "You are the DEFENSE counsel. Deflect and reframe in dense {style} jargon.",
+ROLE_VOICE = {
+    "judge": "the JUDGE: calm, authoritative",
+    "prosecutor": "the PROSECUTOR: pressing, accusatory",
+    "defense": "the DEFENSE counsel: deflecting, protective",
 }
-GENERIC_ROLE_SYS = {  # stage-1 legal_generic data keeps the runtime FORMAT, no jargon
-    "judge": "You are the JUDGE. Speak with calm authority in plain professional English.",
-    "prosecutor": "You are the PROSECUTOR. Press the case hard in plain professional English.",
-    "defense": "You are the DEFENSE counsel. Deflect and reframe in plain professional English.",
-}
-ACTOR_RULES = (" English, 1-2 sentences. React to the previous lines without repeating "
-               "their phrasing. Follow the stage direction; if a fact is given, weave it in "
-               "obliquely. Never name the defendant's profession or state the charge in "
-               "plain words.")
+TRANSLATOR_RULES = (
+    "Rewrite the given courtroom line into dense {register}, in the voice of {voice}. "
+    "KEEP THE MEANING: every concrete detail (objects, actions, numbers, documents) must "
+    "stay recognizable through the metaphor. Do not add or drop claims. 1-2 sentences, "
+    "about the same length as the original. Never name the defendant's profession. "
+    "Output ONLY the rewritten line.")
 
 SCORE_SYS = ("Grade how well the player's guess matches the true profession and charge. "
              "score 0-100, rationale one sentence.")
 
 
 def actor_system(role: str, style: str | None) -> str:
-    base = ROLE_SYS[role].format(style=style) if style else GENERIC_ROLE_SYS[role]
-    return base + ACTOR_RULES
+    """Actors are meaning-preserving style TRANSLATORS (SHAPE 3.0). style=None is the
+    stage-1 curriculum register: formal courtroom rhetoric, no jargon."""
+    register = f"{style} jargon" if style else "formal courtroom rhetoric (plain English)"
+    return TRANSLATOR_RULES.format(register=register, voice=ROLE_VOICE[role])
 
 
 # ---------------------------------------------------------------------------
@@ -119,10 +124,11 @@ def article(word: str) -> str:
     return "an" if word[:1].lower() in "aeiou" else "a"
 
 
-def facts_user(style: str, profession: str, fault: str) -> str:
-    return (f"Jargon style of the courtroom (a smokescreen, unrelated to the case): {style}.\n"
-            f"Hidden truth: the defendant is {article(profession)} {profession} who {fault}.\n"
-            f"Write {MIN_FACTS}-{MAX_FACTS} oblique clue facts.")
+def facts_user(profession: str, fault: str) -> str:
+    # SHAPE 3.0: the director never hears about the jargon — the smokescreen is purely
+    # the actors' translation layer.
+    return (f"Hidden truth: the defendant is {article(profession)} {profession} who {fault}.\n"
+            f"Write exactly {N_FACTS} oblique clue facts.")
 
 
 def gm_user(profession: str, fault: str, facts: list[str],
@@ -145,17 +151,11 @@ def gm_user(profession: str, fault: str, facts: list[str],
             f"This is beat {turn + 1} of {budget}.{pressure}{force}")
 
 
-def actor_user(stage_direction: str, intensity: int, fact: str | None,
-               context: list[tuple[str, str]]) -> str:
-    """One actor prompt. `context` = the last 1-2 PUBLIC transcript lines (role, text) —
-    no hidden truth ever enters the actor (§4.3 keeps the can't-leak guarantee)."""
-    parts = []
-    if context:
-        parts.append("Previous lines:\n" + "\n".join(f"{r}: {t}" for r, t in context))
-    if fact:
-        parts.append(f"Fact to weave in obliquely: {fact}")
-    parts.append(f"Stage direction: {stage_direction}\nIntensity: {intensity}/5.")
-    return "\n".join(parts)
+def actor_user(plain_line: str) -> str:
+    """One translator prompt (SHAPE 3.0). The actor receives ONLY the plain line the
+    director wrote — public content; no hidden truth ever enters the actor, so the
+    can't-leak guarantee survives the redesign."""
+    return f"Line to rewrite: {plain_line}"
 
 
 def score_user(profession: str, fault_plain: str, guess: str) -> str:
@@ -182,9 +182,9 @@ def leaks(text: str, profession: str) -> bool:
 def valid_decision(d: dict) -> bool:
     return (isinstance(d, dict) and d.get("next_speaker") in SPEAKERS
             and d.get("beat_type") in BEATS
-            and (d.get("fact_index") is None or d.get("fact_index") in (0, 1, 2, 3, 4))
+            and (d.get("fact_index") is None or d.get("fact_index") in tuple(range(N_FACTS)))
             and d.get("intensity") in (1, 2, 3, 4, 5)
-            and isinstance(d.get("stage_direction"), str)
+            and isinstance(d.get("line"), str) and len(d.get("line", "").split()) >= 4
             and isinstance(d.get("wrap_up"), bool))
 
 

@@ -102,8 +102,7 @@ def _facts_metrics(raw, metas):
     for text, m in zip(raw, metas):
         o = _json(text)
         facts = o.get("facts") if o else None
-        if not (isinstance(facts, list)
-                and contracts.MIN_FACTS <= len(facts) <= contracts.MAX_FACTS):
+        if not (isinstance(facts, list) and len(facts) == contracts.N_FACTS):
             continue
         valid += 1
         if any(contracts.leaks(str(f), m["prof"]) for f in facts):
@@ -131,7 +130,7 @@ def _decide_metrics(raw, metas):
             p_ctx += 1
             p2d += (nx == "defense")
         agree += (nx == m["teacher"])
-        if m["prof"] and contracts.leaks(o["stage_direction"], m["prof"]):
+        if m["prof"] and contracts.leaks(o["line"], m["prof"]):
             leak += 1
     v = max(valid, 1)
     return {"n": n, "json_valid": valid / n, "distinct_speakers": len(spk),
@@ -214,7 +213,7 @@ def evaluate(adapter: str = "director", n_decide: int = 180):
     cf_sysu, cf_meta = [], []
     for i, style in enumerate(contracts.STYLES * 3):
         prof, fault = pools.sample_case(random.Random(1000 + i), style)
-        cf_sysu.append((contracts.FACTS_SYS, contracts.facts_user(style, prof, fault)))
+        cf_sysu.append((contracts.FACTS_SYS, contracts.facts_user(prof, fault)))
         cf_meta.append({"prof": prof})
     sc_sysu, sc_meta = [], []
     for i in range(8):

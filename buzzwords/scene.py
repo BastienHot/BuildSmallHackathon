@@ -127,18 +127,29 @@ def render_verdict_banner(s: GameSession) -> str:
 
 
 def render_reveal(s: GameSession) -> str:
-    """Left: the jargon transcript the player heard. Right: the hidden truth."""
+    """The truth, the exhibits, then the decoded transcript: each jargon line the
+    player heard next to the plain line it translated (SHAPE 3.0 — the game finally
+    explains itself)."""
     cf = s.case.case_file
-    transcript = "".join(
-        f'<div class="rl"><b>{ROLE_NAME.get(ln.actor, ln.actor.title())}</b> '
-        f'{html.escape(ln.text)}</div>' for ln in s.case.lines)
     article = "An" if cf.profession[:1].lower() in "aeiou" else "A"
     truth = (f'<div class="rt"><div><b>You were:</b> '
              f'{html.escape(f"{article} {cf.profession}")}</div>'
              f'<div><b>What you actually did:</b> '
              f'{html.escape(_sentence(cf.fault_plain, period=True))}</div></div>')
+    exhibits = "".join(
+        f'<div class="rl"><b>Exhibit {chr(65 + i)}</b> '
+        f'{html.escape(_sentence(f, period=True))}</div>'
+        for i, f in enumerate(cf.facts))
+    rows = "".join(
+        f'<div class="decode-row"><div class="decode-who">'
+        f'{ROLE_NAME.get(ln.actor, ln.actor.title())}</div>'
+        f'<div class="decode-jargon">{html.escape(ln.text)}</div>'
+        f'<div class="decode-plain">↳ {html.escape(ln.plain_text or "—")}</div></div>'
+        for ln in s.case.lines)
     return ('<div class="files">'
-            '<div class="col head jargon">What you heard</div>'
             '<div class="col head plain">The truth</div>'
-            f'<div class="col jargon">{transcript}</div>'
-            f'<div class="col plain">{truth}</div></div>')
+            '<div class="col head jargon">The exhibits</div>'
+            f'<div class="col plain">{truth}</div>'
+            f'<div class="col jargon">{exhibits}</div></div>'
+            '<div class="decode"><div class="decode-title">The hearing, decoded — '
+            'what you heard vs. what it meant</div>' + rows + '</div>')

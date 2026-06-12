@@ -105,7 +105,7 @@ class TextEngine:
         """Assert the actor path returns clean, non-empty, think-free text (§4.5)."""
         out = self._chat(config.ACTOR_SLOT, None,
                          contracts.actor_system("judge", "corporate"),
-                         contracts.actor_user("Call the hearing to order.", 2, None, []),
+                         contracts.actor_user("This hearing is called to order."),
                          grammar=None, max_tokens=60, temperature=0.7)
         if not out.strip():
             raise EngineError("Self-test: actor returned an empty line — thinking mode "
@@ -155,9 +155,9 @@ class TextEngine:
         raise EngineError("GM produced unparseable output twice (truncation?)")
 
     # ------------------------------------------------------------ game calls
-    def facts(self, style: str, profession: str, fault: str) -> list[str]:
+    def facts(self, profession: str, fault: str) -> list[str]:
         d = self._json_call(config.GM_SLOT, "director", contracts.FACTS_SYS,
-                            contracts.facts_user(style, profession, fault),
+                            contracts.facts_user(profession, fault),
                             contracts.FACTS_GRAMMAR,
                             config.MAX_TOKENS["facts"], temperature=0.9)
         return [str(f).strip() for f in d["facts"]]
@@ -174,14 +174,15 @@ class TextEngine:
             raise EngineError(f"Invalid decision shape: {d!r}")
         return d
 
-    def act(self, role: str, style: str, stage_direction: str, intensity: int,
-            fact: str | None, context: list[tuple[str, str]]) -> str:
+    def act(self, role: str, style: str, plain_line: str) -> str:
+        """SHAPE 3.0: translate the director's plain line into the style's jargon,
+        meaning preserved. The actor never sees anything but the public line."""
         lora = f"style-{style}" if f"style-{style}" in self._lora_ids else None
         return self._chat(config.ACTOR_SLOT, lora,
                           contracts.actor_system(role, style),
-                          contracts.actor_user(stage_direction, intensity, fact, context),
+                          contracts.actor_user(plain_line),
                           grammar=None, max_tokens=config.MAX_TOKENS["act"],
-                          temperature=0.9, repeat_penalty=config.REPEAT_PENALTY).strip()
+                          temperature=0.8, repeat_penalty=config.REPEAT_PENALTY).strip()
 
     def score(self, profession: str, fault_plain: str, guess: str) -> tuple[int, str]:
         d = self._json_call(config.GM_SLOT, "director", contracts.SCORE_SYS,

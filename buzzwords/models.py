@@ -30,7 +30,7 @@ class GMDecision:
     next_speaker: str           # judge | prosecutor | defense
     beat_type: str = "exchange"
     fact_index: Optional[int] = None   # which case-file fact to surface this beat (or None)
-    stage_direction: str = ""   # oblique instruction handed to the actor
+    line: str = ""              # the spoken line in PLAIN English (SHAPE 3.0)
     intensity: int = 3          # 1..5
     wrap_up: bool = False       # True -> the debate should head to closure
 
@@ -38,9 +38,10 @@ class GMDecision:
 @dataclass
 class Line:
     actor: str                  # role key: judge | prosecutor | defense (matches BUBBLES)
-    text: str                   # the in-character jargon line shown to the player
+    text: str                   # the in-character JARGON line shown to the player
+    plain_text: str = ""        # the director's plain-English original (reveal screen)
     beat_type: str = ""         # the GMDecision.beat_type that produced it
-    fact_index: Optional[int] = None   # the fact this line was asked to weave in
+    fact_index: Optional[int] = None   # the fact this line carries
 
 
 @dataclass

@@ -56,14 +56,13 @@ def test_gm_prompt_is_append_only():
 
 
 def test_actor_never_sees_truth():
-    u = contracts.actor_user("Press on the gap.", 4, "a log had a gap",
-                             [("judge", "Order."), ("prosecutor", "Explain.")])
-    assert "plumber" not in u
-    assert "Stage direction: Press on the gap." in u
-    assert "Fact to weave in obliquely: a log had a gap" in u
-    assert "judge: Order." in u
-    # factless + contextless beat keeps the minimal shape
-    assert contracts.actor_user("Open.", 2, None, []) == "Stage direction: Open.\nIntensity: 2/5."
+    # SHAPE 3.0: the actor is a translator — it receives ONLY the public plain line.
+    u = contracts.actor_user("The records show the controls were held by someone else.")
+    assert "plumber" not in u and "ferry" not in u
+    assert u == "Line to rewrite: The records show the controls were held by someone else."
+    sys_p = contracts.actor_system("defense", "aviation")
+    assert "KEEP THE MEANING" in sys_p and "aviation jargon" in sys_p
+    assert "plain English" in contracts.actor_system("judge", None)  # stage-1 register
 
 
 def test_leak_detection():
@@ -125,16 +124,17 @@ class FakeEngine:
     def __init__(self):
         self.calls = 0
 
-    def facts(self, style, profession, fault):
+    def facts(self, profession, fault):
         return ["the log had a gap", "two names in one hand", "the bin was emptied early"]
 
     def decide(self, profession, fault, facts, transcript, turn, budget, forced):
         self.calls += 1
         return {"next_speaker": "prosecutor", "beat_type": "plea", "fact_index": None,
-                "intensity": 1, "stage_direction": "press on", "wrap_up": turn >= budget - 1}
+                "intensity": 1, "line": "The record speaks for itself here.",
+                "wrap_up": turn >= budget - 1}
 
-    def act(self, role, style, sd, intensity, fact, context):
-        return f"[{role}] says something oblique"
+    def act(self, role, style, plain_line):
+        return f"[{role}] jargonized: {plain_line}"
 
     def score(self, profession, fault, guess):
         return 80, "close enough"
@@ -144,7 +144,7 @@ def _fake_session(monkeypatch_engine):
     import buzzwords.pipeline as pipeline
     pipeline._engine = monkeypatch_engine
     case = Case(case_file=CaseFile(profession="plumber", fault_plain="did x",
-                                   facts=monkeypatch_engine.facts("", "", ""),
+                                   facts=monkeypatch_engine.facts("", ""),
                                    turn_budget=contracts.TURN_BUDGET),
                 jargon_style="corporate")
     s = GameSession()
@@ -197,9 +197,19 @@ def test_empty_guess_scores_zero_without_model():
     assert pipeline.score_guess(case, "a plumber who did x") == (80, "close enough")
 
 
+def test_plain_line_leak_falls_back_safely():
+    class LeakyActor(FakeEngine):
+        def act(self, role, style, plain_line):
+            return "obviously a plumber thing"   # jargon layer leaks -> plain fallback
+    pipeline, s = _fake_session(LeakyActor())
+    pipeline.next_turn(s)
+    assert s.case.lines[0].text == s.case.lines[0].plain_text  # fell back to plain
+    assert not contracts.leaks(s.case.lines[0].text, "plumber")
+
+
 def test_new_case_falls_back_on_leaky_facts():
     class Leaky(FakeEngine):
-        def facts(self, style, profession, fault):
+        def facts(self, profession, fault):
             return [f"obviously a {profession} thing", "x", "y"]
     import buzzwords.pipeline as pipeline
     pipeline._engine = Leaky()
