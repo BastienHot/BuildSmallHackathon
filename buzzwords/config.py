@@ -55,7 +55,9 @@ REQUIRED_MODELS = [
 ]
 
 # Generation budgets — tight caps bound the worst case at ~12 tok/s decode (§4.7).
-MAX_TOKENS = {"facts": 350, "decide": 128, "act": 120, "score": 96}
+# decide=200 since SHAPE 3.0: the decision JSON now carries the full spoken line
+# (128 truncated mid-line -> json retry exhausted -> one-beat hearings, 2026-06-12).
+MAX_TOKENS = {"facts": 350, "decide": 200, "act": 120, "score": 96}
 REPEAT_PENALTY = 1.15   # actors only: fights cross-line phrase recycling (§13.5)
 
 # ---------------------------------------------------------------------------
