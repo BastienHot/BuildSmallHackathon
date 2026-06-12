@@ -106,8 +106,9 @@ def _spec(rng: random.Random, style: str) -> dict:
 _CLUE_BAND = (
     "Calibrate each clue to ONE inference step: a sharp player should be able to NAME "
     "the job and the act from the three together — never from any single clue, and never "
-    "have a clue so generic it could fit any job. At least one clue evokes the "
-    "distinctive tools, materials or workplace of the job; never restate the charge's "
+    "have a clue so generic it could fit any job. One clue MUST make the workplace "
+    "unmistakable: name its distinctive tools, materials or setting so the reader can "
+    "picture where this happened (the act stays oblique). Never restate the charge's "
     "own words.")
 
 

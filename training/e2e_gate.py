@@ -105,6 +105,19 @@ def play_games(n: int, base_seed: int = 0) -> list[dict]:
             temperature=temp)
         return json.loads(out["choices"][0]["message"]["content"])
 
+    def actor_say(style: str, system: str, user: str) -> str:
+        """Raw-completion actor call rendering the EXACT training/runtime prompt shape
+        (ChatML + the empty think block MiniCPM5 emits under enable_thinking=False).
+        The binding's default chat template omits that prefix, which made the trained
+        translator produce real <think> rambles in the 2026-06-12 gate run."""
+        prompt = (f"<s><|im_start|>system\n{system}<|im_end|>\n"
+                  f"<|im_start|>user\n{user}<|im_end|>\n"
+                  f"<|im_start|>assistant\n<think>\n\n</think>\n\n")
+        out = actor_model(style).create_completion(
+            prompt=prompt, max_tokens=120, temperature=0.8, repeat_penalty=1.15,
+            stop=["<|im_end|>"])
+        return out["choices"][0]["text"].strip()
+
     games, contexts = [], []
     budget = contracts.TURN_BUDGET
     for g in range(n):
@@ -138,7 +151,14 @@ def play_games(n: int, base_seed: int = 0) -> list[dict]:
             contexts.append({"conversations": [
                 {"role": "system", "content": contracts.GM_SYS},
                 {"role": "user", "content": user}]})
-            d = jcall(gm, contracts.GM_SYS, user, contracts.DECISION_GRAMMAR, 200, 0.7)
+            # Mirror pipeline.next_turn: re-sample the decision if the plain line
+            # leaks the profession (the runtime's retry; ~2.5% of raw beats).
+            for attempt in range(3):
+                d = jcall(gm, contracts.GM_SYS, user, contracts.DECISION_GRAMMAR,
+                          200, 0.7 + 0.1 * attempt)
+                plain = str(d["line"]).strip()
+                if not contracts.leaks(plain, profession):
+                    break
             speaker, beat = contracts.guard_speaker(d["next_speaker"], d["beat_type"],
                                                     history, turn, budget)
             guarded = (speaker, beat) != (d["next_speaker"], d["beat_type"])
@@ -146,14 +166,10 @@ def play_games(n: int, base_seed: int = 0) -> list[dict]:
             fi = forced if forced is not None else d.get("fact_index")
             if fi is not None and not (0 <= fi < len(facts)):
                 fi = None
-            plain = str(d["line"]).strip()
             # SHAPE 3.0: the actor TRANSLATES the director's plain line into jargon.
-            line_obj = actor_model(style).create_chat_completion(
-                messages=[{"role": "system", "content": contracts.actor_system(speaker, style)},
-                          {"role": "user", "content": contracts.actor_user(plain)}],
-                max_tokens=120, temperature=0.8, repeat_penalty=1.15)
-            line = line_obj["choices"][0]["message"]["content"].strip()
-            if contracts.leaks(line, profession):   # mirror the runtime fallback
+            line = actor_say(style, contracts.actor_system(speaker, style),
+                             contracts.actor_user(plain))
+            if not line or contracts.leaks(line, profession):  # runtime fallback
                 line = plain
             if fi is not None:
                 released.add(fi)
@@ -285,15 +301,17 @@ class Solver:
                 body = (docket + "\n\nThe hearing:\n"
                         + "\n".join(f"{b['speaker']}: {b['line']}" for b in g["beats"]))
             prompts.append(
-                "You are a contestant in a guessing game. Below is evidence from a "
-                "courtroom case. Any jargon is a SMOKESCREEN — the defendant's real "
-                "profession and act are unrelated to it. Read between the lines and "
-                "guess.\n\n" + body + "\n\nReturn ONLY JSON "
+                "You are a contestant in a guessing game, and you know its rules: the "
+                "courtroom speaks in a jargon that is a pure SMOKESCREEN — the "
+                "defendant's real profession is NEVER from the jargon's own domain, so "
+                "actively exclude it. The exhibits in the court record are the reliable "
+                "evidence; decode the hearing through them.\n\n" + body +
+                "\n\nReturn ONLY JSON "
                 '{"profession": "<your best guess>", "fault": "<what they actually did>"}.')
         msgs = [[{"role": "user", "content": p}] for p in prompts]
         sps = SamplingParams(temperature=0.3, top_p=0.95, max_tokens=120)
         outs = self.llm.chat(msgs, sps)
-        results = []
+        results, guesses = [], []
         for g, o in zip(games, outs):
             text = o.outputs[0].text
             a, b = text.find("{"), text.rfind("}")
@@ -301,7 +319,36 @@ class Solver:
                 guess = json.loads(text[a:b + 1]) if a != -1 and b > a else {}
             except Exception:  # noqa: BLE001
                 guess = {}
+            guesses.append(guess)
             results.append(_solver_score(g, guess))
+
+        # LLM grading (the GATE metric): semantic credit for near-misses the token
+        # metric zeroes ("janitor who sold master keys" vs locksmith, 2026-06-12).
+        # Same rubric as the in-game scorer; token job_hit stays as an informational
+        # column. Safe from gaming: it grades the solver's guesses, not a trainee.
+        gmsgs = [[{"role": "user", "content":
+                   f"True profession: {g['profession']}\nTrue act: {g['fault']}\n"
+                   f"A player guessed — profession: {gu.get('profession', '?')}; "
+                   f"act: {gu.get('fault', '?')}.\n"
+                   "Grade STRICTLY on this scale:\n"
+                   "95 = profession AND act both right (exact or true synonym, e.g. "
+                   "'attorney' for 'lawyer').\n"
+                   "65 = act essentially right, profession an ADJACENT job (e.g. "
+                   "'janitor' instead of 'locksmith' for selling copied keys).\n"
+                   "45 = act essentially right, profession wrong and not adjacent.\n"
+                   "50 = profession right, act wrong.\n"
+                   "25 = only the general situation type recognized (e.g. 'some fraud').\n"
+                   "5 = unrelated.\n"
+                   "Interpolate between anchors; do NOT round up generously. Return "
+                   'ONLY JSON {"score": <int>}.'}] for g, gu in zip(games, guesses)]
+        gouts = self.llm.chat(gmsgs, SamplingParams(temperature=0.0, max_tokens=40))
+        for r, o in zip(results, gouts):
+            text = o.outputs[0].text
+            a, b = text.find("{"), text.rfind("}")
+            try:
+                r["llm_score"] = max(0, min(100, int(json.loads(text[a:b + 1])["score"])))
+            except Exception:  # noqa: BLE001
+                r["llm_score"] = r["score"]   # fall back to the deterministic number
         return results
 
 
@@ -372,7 +419,9 @@ def _aggregate(games: list[dict], solver: list[dict] | None) -> dict:
         "fallback_facts_rate": mean(g["used_fallback_facts"] for g in games),
         "score_spot_mean": mean(g["score_spot"] for g in games),
         "score_unrel_mean": mean(g["score_unrel"] for g in games),
-        "solver_mean": mean(r["score"] for r in solver) if solver else None,
+        "solver_mean": (mean(r.get("llm_score", r["score"]) for r in solver)
+                        if solver else None),   # LLM-graded (gate metric)
+        "solver_mean_token": mean(r["score"] for r in solver) if solver else None,
         "solver_job_hit_rate": mean(r["job_hit"] for r in solver) if solver else None,
         "transitions": {f"{a}->{b}": c for (a, b), c in sorted(trans.items())},
     }

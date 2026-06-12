@@ -11,8 +11,10 @@ sees or must emit; datagen stamps it into manifests and training refuses a misma
 
 from __future__ import annotations
 
-SHAPE_VERSION = "3.0"   # 3.0: director WRITES the plain line; actors TRANSLATE it into
-                        # jargon (meaning-preserving style transfer); exactly 3 facts.
+SHAPE_VERSION = "3.1"   # 3.0: director writes the plain line; actors translate.
+                        # 3.1: the workplace clue must make the SETTING unmistakable
+                        # (facts-only solvability 27.4 -> the profession channel needed
+                        # more signal; the act stays oblique).
 
 # ---------------------------------------------------------------------------
 # Enums and budgets
@@ -78,10 +80,11 @@ number ::= [0-9] | [1-9][0-9] | "100"
 FACTS_SYS = ("Write the oblique clue facts for a hidden courtroom case. Each fact is one "
              "short sentence that HINTS at the defendant's real job and act without ever "
              "naming the profession or stating the act in plain words. Facts are concrete "
-             "(logs, records, witnesses, timing), never vague. At least one fact must "
-             "evoke the distinctive tools, materials, or workplace of the job; together "
-             "the facts must let a sharp player NAME the job and the act. Output ONLY the "
-             "requested JSON.")
+             "(logs, records, witnesses, timing), never vague. One fact MUST make the "
+             "workplace unmistakable — name its distinctive tools, materials or setting "
+             "so a reader can picture where this happened (while the act stays oblique); "
+             "together the facts must let a sharp player NAME the job and the act. "
+             "Output ONLY the requested JSON.")
 
 GM_SYS = ("You are the GAME MASTER directing a short courtroom debate. Each beat, pick who "
           "speaks, the beat type, which numbered fact to surface next (fact_index, or null), "
