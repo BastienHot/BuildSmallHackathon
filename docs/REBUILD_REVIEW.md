@@ -1085,5 +1085,14 @@ and the gate runs on Modal are the remaining (paid, user-run) steps — see
 
 ---
 
+*Outcome (2026-06-12): the SHAPE 2.1 chain passed the full gate — **9/9** (guards
+1.7% of beats, repetition 0.9%, leaks 0 after fixing a word-boundary false positive
+in the detector itself, wrap 1.0, fact coverage 1.0, scorer separation 85,
+solvability 31.75 in-band with 58% exact-job hits). Adapters and 64 agent traces
+published; the Space is live and play-verified. Post-ship playtest fixes: empty-plea
+deterministic zero, sentence-cased reveal, the evidence-board UI, full
+pre-generation behind the progress bar. This document is now a historical record;
+the narrative version is `docs/FIELD_NOTES.md`.*
+
 *End of review. Companion documents: `docs/ARCHITECTURE.md` (design history),
-`docs/FIELD_NOTES.md` (evaluation narrative), `training/README.md` (run order).*
+`docs/FIELD_NOTES.md` (the field log / blog post), `training/README.md` (run order).*
