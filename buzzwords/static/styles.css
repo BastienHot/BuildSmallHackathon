@@ -206,3 +206,60 @@ footer { display:none !important; }
 .decode-jargon { color:var(--text) !important; font-size:14.5px; line-height:1.45; }
 .decode-plain { color:#9fd49f !important; font-size:13.5px; line-height:1.4;
   margin-top:3px; font-style:italic; }
+
+/* ---------------- REVEAL COLUMNS (The truth / The exhibits) ---------------- */
+.rt { display:flex; flex-direction:column; gap:8px; }
+.rt div { font-size:14px; line-height:1.5; color:var(--text) !important; }
+.rl { font-size:14px; line-height:1.45; color:var(--text) !important;
+  padding-bottom:6px; }
+.rl:not(:last-child) { border-bottom:1px solid rgba(58,64,77,.4); margin-bottom:6px; }
+/* exhibit label stays inline, not block like generic .files .col b */
+.rl b { display:inline !important; color:var(--muted) !important; }
+
+/* ---------------- NAV BAR (← Back / counter / Next →) ---------------- */
+.bw-nav { align-items:center !important; flex-wrap:nowrap !important; gap:8px !important; }
+#bw-counter > .html-container, #bw-counter > div { padding:0 !important; }
+.beat-counter { text-align:center; font-size:13px; font-weight:700; letter-spacing:.06em;
+  color:var(--muted); white-space:nowrap; user-select:none; }
+
+/* role-specific bubble speaker name colours */
+.bubble.role-judge      .bub-name { color:#d4af50 !important; }
+.bubble.role-prosecutor .bub-name { color:var(--accent2) !important; }
+.bubble.role-defense    .bub-name { color:#7ec89a !important; }
+
+/* stage progress strip */
+.stage-progress { position:absolute; bottom:0; left:0; right:0; height:3px;
+  background:rgba(255,255,255,.1); z-index:4; border-radius:0 0 14px 14px; }
+.stage-progress-fill { height:100%; background:var(--accent);
+  border-radius:0 0 14px 14px; transition:width .4s ease;
+  box-shadow:0 0 8px rgba(224,169,46,.7); }
+
+/* button polish: lift on hover, sink on press */
+.bw-btn button:hover { filter:brightness(1.08) !important;
+  transform:translateY(-2px) !important; box-shadow:0 6px 0 #9c7a18 !important; }
+.bw-btn button:active { transform:translateY(3px) !important; }
+.bw-btn.danger button:hover { box-shadow:0 6px 0 #7d2418 !important; }
+.bw-btn.ghost button:hover { border-color:var(--accent) !important;
+  color:var(--accent) !important; box-shadow:0 6px 0 #0b0d11 !important; }
+
+/* ---------------- MOBILE (≤480px) ---------------- */
+@media (max-width:480px) {
+  .gradio-container { padding:8px !important; }
+  .hero { min-height:200px !important; }
+  .hero-content { padding:18px 12px; }
+  .bubble { max-width:56%; min-width:120px; padding:8px 10px; }
+  .bub-text { font-size:14px; }
+  .bub-name { font-size:9.5px; }
+  .stage { border-radius:8px; }
+  .bw-btn { width:100%; }
+  .bw-btn button, button.bw-btn { font-size:14px !important; padding:12px 14px !important; }
+  .bw-nav { flex-wrap:wrap !important; }
+  .bw-nav-prev, .bw-nav-next { flex:1 1 auto !important; }
+  .decode { padding:8px 10px; }
+  .decode-jargon { font-size:13.5px; }
+  .decode-plain { font-size:12.5px; }
+  .verdict .score { font-size:48px; }
+  .eboard { padding:8px 10px 10px; }
+  .note { padding:14px 10px 8px; }
+  .note-text { font-size:12.5px; }
+}

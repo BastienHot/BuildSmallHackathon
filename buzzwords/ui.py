@@ -33,15 +33,28 @@ _HIDE = gr.update(visible=False)
 _SHOW = gr.update(visible=True)
 
 
-def _buttons(s: GameSession):
-    """Continue until the last generated beat is on screen and no more are coming."""
+def _nav(s: GameSession):
+    """Return (prev_update, next_update, plea_update, counter_html, progress_frac)."""
     done = s.playback_done
-    return gr.update(visible=not done), gr.update(visible=done)
+    if s.case and s.case.lines:
+        total = len(s.case.lines)
+        idx = min(s.playback_idx, total - 1) + 1
+        counter = f'<div class="beat-counter">{idx}&thinsp;/&thinsp;{total}</div>'
+        progress = idx / total
+    else:
+        counter, progress = "", 0.0
+    return (
+        gr.update(visible=s.playback_idx > 0),
+        gr.update(visible=not done),
+        gr.update(visible=done),
+        counter,
+        progress,
+    )
 
 
 def _charges_error(s, message):
     """Bounce back to the Charges step with an explanation."""
-    return s, gr.Walkthrough(selected=CHARGES), scene.error_card(message), "", _HIDE, _HIDE
+    return s, gr.Walkthrough(selected=CHARGES), scene.error_card(message), "", _HIDE, _HIDE, _HIDE, ""
 
 
 def _evidence(s: GameSession) -> list[str]:
@@ -56,14 +69,15 @@ def _evidence(s: GameSession) -> list[str]:
 
 
 def _hearing_view(s: GameSession):
-    cont, plea = _buttons(s)
+    prev_u, cont_u, plea_u, counter, progress = _nav(s)
     return (s, gr.Walkthrough(selected=HEARING), "",
-            scene.render_stage(s.case, s.current_line(), _evidence(s)), cont, plea)
+            scene.render_stage(s.case, s.current_line(), _evidence(s), progress=progress),
+            prev_u, cont_u, plea_u, counter)
 
 
 def _loading_view(s, frac, desc):
     return (s, gr.Walkthrough(selected=HEARING), "", scene.loading_card(frac, desc),
-            _HIDE, _HIDE)
+            _HIDE, _HIDE, _HIDE, "")
 
 
 # ------------------------------------------------------------------ handlers
@@ -120,6 +134,13 @@ def advance(s):
     yield _hearing_view(s)
 
 
+def go_back(s):
+    """Step back to the previous beat — always instant."""
+    if s.case and s.playback_idx > 0:
+        s.playback_idx -= 1
+    return _hearing_view(s)
+
+
 def go_to_plea(s):
     return gr.Walkthrough(selected=PLEA)
 
@@ -152,7 +173,12 @@ def build_ui() -> gr.Blocks:
                 charges_status = gr.HTML()   # preflight / startup error messages
             with gr.Step("The hearing", id=HEARING):
                 screen = gr.HTML(elem_id="bw-screen")
-                cont = gr.Button("Continue  ▶", elem_classes="bw-btn")
+                with gr.Row(elem_classes="bw-nav"):
+                    prev = gr.Button("← Back", elem_classes="bw-btn ghost bw-nav-prev",
+                                     visible=False, scale=0, min_width=120)
+                    beat_counter = gr.HTML(elem_id="bw-counter", scale=1)
+                    cont = gr.Button("Next →", elem_classes="bw-btn bw-nav-next",
+                                     scale=0, min_width=120)
                 plea = gr.Button("⚖  Enter your plea", elem_classes="bw-btn danger", visible=False)
             with gr.Step("Your plea", id=PLEA):
                 gr.HTML(PLEA_SCREEN)
@@ -164,9 +190,10 @@ def build_ui() -> gr.Blocks:
                 verdict = gr.HTML()
                 again = gr.Button("↻  New case", elem_classes="bw-btn ghost")
 
-        start.click(start_case, [jargon, session],
-                    [session, walk, charges_status, screen, cont, plea])
-        cont.click(advance, [session], [session, walk, charges_status, screen, cont, plea])
+        hearing_outputs = [session, walk, charges_status, screen, prev, cont, plea, beat_counter]
+        start.click(start_case, [jargon, session], hearing_outputs)
+        cont.click(advance, [session], hearing_outputs)
+        prev.click(go_back, [session], hearing_outputs)
         plea.click(go_to_plea, [session], [walk])
         submit.click(submit_plea, [guess, session], [session, walk, verdict])
         again.click(play_again, None, [session, walk, guess])

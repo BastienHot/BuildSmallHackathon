@@ -42,19 +42,24 @@ def _bubble(line: Line) -> str:
     b = config.BUBBLES.get(line.actor, {"x": 50, "y": 42, "tail": "center"})
     name = ROLE_NAME.get(line.actor, line.actor.title())
     return (
-        f'<div class="bubble tail-{b["tail"]}" style="left:{b["x"]}%;top:{b["y"]}%">'
+        f'<div class="bubble tail-{b["tail"]} role-{line.actor}" style="left:{b["x"]}%;top:{b["y"]}%">'
         f'<span class="bub-name">{name}</span>'
         f'<span class="bub-text">{html.escape(line.text)}</span></div>'
     )
 
 
-def render_stage(case: Case, line: Line | None, evidence: list[str] | None = None) -> str:
+def render_stage(case: Case, line: Line | None, evidence: list[str] | None = None,
+                 progress: float | None = None) -> str:
     """The stage plus the EVIDENCE DOCKET: oblique facts surface to the player as they
     are woven into beats. The jargon theater is the entertainment layer; the docket is
     the solvable puzzle layer (REBUILD_REVIEW.md solvability fix — transcript-only was
     measured unwinnable even for the 31B teacher)."""
     bubble = _bubble(line) if line else ""
-    hint = '<div class="hint">▶ click <b>Continue</b></div>' if line else ""
+    progress_strip = ""
+    if progress is not None:
+        pct = round(max(0, min(1, progress)) * 100)
+        progress_strip = (f'<div class="stage-progress">'
+                          f'<div class="stage-progress-fill" style="width:{pct}%"></div></div>')
     evidence = evidence or []
     if evidence:
         notes = "".join(
@@ -72,7 +77,7 @@ def render_stage(case: Case, line: Line | None, evidence: list[str] | None = Non
              f'<span class="eb-count">{count}</span></div>{body}</div>')
     return (
         f'<div class="stage" style="background-image:url(\'{image_url(case.jargon_style)}\')">'
-        f'<div class="vignette"></div>{bubble}{hint}</div>{board}'
+        f'<div class="vignette"></div>{bubble}{progress_strip}</div>{board}'
     )
 
 
@@ -117,9 +122,12 @@ def render_verdict_banner(s: GameSession) -> str:
     score = s.score or 0
     word = ("Case dismissed!" if score >= 80 else "Reasonable doubt" if score >= 50
             else "Guilty as charged" if score >= 20 else "Throw the book at 'em")
+    color = ("#7ec89a" if score >= 80 else "#e0a92e" if score >= 50
+             else "#e8a05a" if score >= 20 else "#c0392b")
     return (
-        f'<div class="verdict"><div class="score">{score}%</div>'
-        f'<div class="word">{word}</div>'
+        f'<div class="verdict">'
+        f'<div class="score" style="color:{color}">{score}%</div>'
+        f'<div class="word" style="color:{color}">{word}</div>'
         f'<div class="why">&ldquo;{html.escape(s.rationale)}&rdquo;</div>'
         f'<div class="charge"><b>The real charge:</b> '
         f'{html.escape(_sentence(s.case.case_file.fault_plain, period=True))}</div></div>'
