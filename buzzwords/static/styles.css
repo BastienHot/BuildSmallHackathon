@@ -68,21 +68,23 @@ footer { display:none !important; }
   box-shadow:0 4px 0 #7d2418 !important; }
 
 /* card-style pickers (jargon + voice) */
+/* Gradio's BaseForm renders div.svelte-d5xbca with background:var(--border-color-primary).
+   Overriding the CSS variables here is the only way to reach through the Svelte hash. */
+.bw-pick {
+  --border-color-primary: transparent;
+  --block-border-color: transparent;
+  --block-border-width: 0px;
+  --block-shadow: none;
+  --block-background-fill: transparent;
+  --background-fill-primary: transparent;
+  --background-fill-secondary: transparent;
+  --form-gap-width: 0px;
+}
 .bw-pick .block-title, .bw-pick span[data-testid="block-info"] {
   color:var(--muted) !important; font-size:11px !important; font-weight:700 !important;
   text-transform:uppercase; letter-spacing:.1em; opacity:1 !important; margin-bottom:6px !important; }
-/* nuke every Gradio wrapper background inside the picker */
-.bw-pick, .bw-pick > div, .bw-pick .block, .bw-pick .form,
-.bw-pick fieldset, .bw-pick .wrap,
-.bw-pick .block-label, .bw-pick label.block-label,
-.bw-pick .label-wrap, [class].bw-pick * {
-  background:transparent !important; border:none !important;
-  box-shadow:none !important;
-}
-/* restore breathing room on the outer block */
-.bw-pick .block { padding:6px 0 10px !important; }
-/* zero inner wrappers so the grid gap controls spacing */
-.bw-pick .form, .bw-pick fieldset, .bw-pick .wrap { padding:0 !important; }
+.bw-pick .block { padding:6px 0 10px !important; background:transparent !important; }
+.bw-pick .form, .bw-pick fieldset, .bw-pick .wrap { padding:0 !important; background:transparent !important; }
 .bw-pick fieldset, .bw-pick .wrap {
   display:grid !important; grid-template-columns:repeat(4, 1fr); gap:8px;
 }
