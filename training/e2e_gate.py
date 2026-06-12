@@ -98,12 +98,20 @@ def play_games(n: int, base_seed: int = 0) -> list[dict]:
         return actor_cache[key]
 
     def jcall(model, system, user, grammar, max_tokens, temp):
-        out = model.create_chat_completion(
-            messages=[{"role": "system", "content": system},
-                      {"role": "user", "content": user}],
-            grammar=LlamaGrammar.from_string(grammar), max_tokens=max_tokens,
-            temperature=temp)
-        return json.loads(out["choices"][0]["message"]["content"])
+        # Grammar guarantees structure but a generation can truncate mid-string;
+        # retry like engine._json_call (one container's crash killed a 64-trace
+        # starmap run on 2026-06-12).
+        for attempt in range(3):
+            out = model.create_chat_completion(
+                messages=[{"role": "system", "content": system},
+                          {"role": "user", "content": user}],
+                grammar=LlamaGrammar.from_string(grammar), max_tokens=max_tokens,
+                temperature=temp + 0.1 * attempt)
+            try:
+                return json.loads(out["choices"][0]["message"]["content"])
+            except json.JSONDecodeError:
+                continue
+        raise RuntimeError("grammar output unparseable 3x (truncation?)")
 
     def actor_say(style: str, system: str, user: str) -> str:
         """Raw-completion actor call rendering the EXACT training/runtime prompt shape
