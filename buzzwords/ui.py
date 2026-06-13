@@ -19,8 +19,48 @@ from .models import GameSession
 
 log = logging.getLogger(__name__)
 
-JARGON_CHOICES = [(f"{spec['icon']} {spec['label']}", key)
-                  for key, spec in config.JARGONS.items()]
+GUESS_MAX = 280
+
+
+def _jargon_picker() -> gr.HTML:
+    """Fully custom radio group (gr.HTML): Gradio's Radio form chrome forced a white
+    background on mobile light-theme, so the markup/CSS here is 100% ours. Selection
+    is template-driven (`${value === key}`) because Gradio re-renders the template on
+    every props.value change and would wipe JS-toggled classes."""
+    opts = "".join(
+        f'<button type="button" class="jp-opt${{value === \'{key}\' ? " on" : ""}}" '
+        f'data-key="{key}" role="radio" aria-checked="${{value === \'{key}\'}}">'
+        f'<span class="jp-ico">{spec["icon"]}</span>'
+        f'<span class="jp-lab">{spec["label"]}</span></button>'
+        for key, spec in config.JARGONS.items()
+    )
+    template = ('<div class="jpick" role="radiogroup" aria-label="Jargon">'
+                '<div class="fld-head">Jargon</div>'
+                f'<div class="jp-grid">{opts}</div></div>')
+    js = ("element.addEventListener('click', (e) => {"
+          "  const btn = e.target.closest('.jp-opt');"
+          "  if (btn && btn.dataset.key !== props.value) props.value = btn.dataset.key;"
+          "});")
+    return gr.HTML(value=config.DEFAULT_JARGON, html_template=template,
+                   js_on_load=js, apply_default_css=False, elem_id="bw-jargon")
+
+
+def _guess_field() -> gr.HTML:
+    """Custom plea textarea (gr.HTML) styled as a court statement form. The character
+    counter lives in the template (`${value.length}`) for the same re-render reason
+    as the picker."""
+    template = ('<div class="gwrap">'
+                '<label class="fld-head" for="bw-guess-ta">Statement of the accused</label>'
+                '<div class="g-paper">'
+                f'<textarea id="bw-guess-ta" rows="3" maxlength="{GUESS_MAX}" '
+                'placeholder="In plain words \u2014 what do you think you actually did?"></textarea>'
+                f'<div class="g-foot"><span class="g-count">${{value.length}}&thinsp;/&thinsp;{GUESS_MAX}</span></div>'
+                '</div></div>')
+    js = ("const ta = element.querySelector('textarea');"
+          "ta.addEventListener('input', () => { props.value = ta.value; });")
+    return gr.HTML(value="", html_template=template, js_on_load=js,
+                   apply_default_css=False, elem_id="bw-guess")
+
 
 CHARGES, HEARING, PLEA, VERDICT = 1, 2, 3, 4
 
@@ -167,8 +207,7 @@ def build_ui() -> gr.Blocks:
         with gr.Walkthrough(selected=CHARGES) as walk:
             with gr.Step("⚖ Charges", id=CHARGES):
                 gr.HTML(scene.title_card(scene.image_url(config.DEFAULT_JARGON)))
-                jargon = gr.Radio(JARGON_CHOICES, value=config.DEFAULT_JARGON,
-                                  label="Jargon", elem_classes="bw-pick")
+                jargon = _jargon_picker()
                 start = gr.Button("⚖  Start the hearing", elem_classes="bw-btn")
                 charges_status = gr.HTML()   # preflight / startup error messages
             with gr.Step("The hearing", id=HEARING):
@@ -182,9 +221,7 @@ def build_ui() -> gr.Blocks:
                 plea = gr.Button("⚖  Enter your plea", elem_classes="bw-btn danger", visible=False)
             with gr.Step("Your plea", id=PLEA):
                 gr.HTML(PLEA_SCREEN)
-                guess = gr.Textbox(value="", lines=2, show_label=False,
-                                   placeholder="What is the charge against you?",
-                                   elem_classes="bw-guess")
+                guess = _guess_field()
                 submit = gr.Button("Deliver my defense", elem_classes="bw-btn danger")
             with gr.Step("The verdict", id=VERDICT):
                 verdict = gr.HTML()
@@ -196,5 +233,8 @@ def build_ui() -> gr.Blocks:
         prev.click(go_back, [session], hearing_outputs)
         plea.click(go_to_plea, [session], [walk])
         submit.click(submit_plea, [guess, session], [session, walk, verdict])
-        again.click(play_again, None, [session, walk, guess])
+        # play_again resets the guess component's value, but Gradio's HTML diff can't
+        # reach the textarea's value *property* — clear the DOM client-side too.
+        again.click(play_again, None, [session, walk, guess],
+                    js="() => { const t = document.getElementById('bw-guess-ta'); if (t) t.value = ''; }")
     return demo

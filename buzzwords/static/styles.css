@@ -8,6 +8,10 @@
 }
 
 footer { display:none !important; }
+/* The app is dark by design: pin every page-level background so the OS
+   light-mode theme (mobile default) can never bleed white through. */
+html, body, gradio-app { background:var(--bg) !important; }
+:root { color-scheme:dark; }
 .gradio-container {
   background:var(--bg) !important; max-width:760px !important; margin:0 auto !important;
   padding:16px !important; font-family:var(--ui); color:var(--text);
@@ -67,43 +71,46 @@ footer { display:none !important; }
 .bw-btn.danger button { background:var(--accent2) !important; color:#fff !important;
   box-shadow:0 4px 0 #7d2418 !important; }
 
-/* card-style pickers (jargon + voice) */
-/* Gradio 6.0.1 Svelte hashes (BaseForm = svelte-d5xbca, Block = svelte-239wnu).
-   Direct hash targeting is the only reliable way to beat Svelte-scoped styles.
-   CSS variable overrides are kept as a belt-and-suspenders backup. */
-.bw-pick {
-  --border-color-primary: transparent;
-  --block-border-color: transparent;
-  --block-border-width: 0px;
-  --block-shadow: none;
-  --block-background-fill: transparent;
-  --background-fill-primary: transparent;
-  --background-fill-secondary: transparent;
-  --form-gap-width: 0px;
+/* ---------------- CUSTOM INPUTS (gr.HTML components — markup is ours) ----------
+   The old gr.Radio picker fought Gradio's Svelte-scoped form styles (white bg on
+   mobile light theme). These components render their own markup, so the only
+   Gradio styling to neutralise is the outer block wrapper. */
+#bw-jargon, #bw-guess {
+  background:transparent !important; border:none !important;
+  box-shadow:none !important; padding:0 !important;
 }
-.bw-pick div.svelte-d5xbca,
-.bw-pick .block.svelte-239wnu {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
+#bw-jargon .html-container, #bw-guess .html-container,
+#bw-jargon > div, #bw-guess > div { background:transparent !important; padding:0 !important; }
+
+/* shared small-caps field label */
+.fld-head { font-family:var(--ui); font-size:11px; font-weight:800; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.14em; }
+
+/* ---------------- JARGON PICKER ---------------- */
+.jpick { display:flex; flex-direction:column; gap:9px; padding:2px 0 6px; }
+.jp-grid { display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; }
+.jp-opt {
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  font-family:var(--ui); font-size:14px; font-weight:600; color:var(--text);
+  background:linear-gradient(180deg, #1d212b, #14171f); border:1px solid var(--line);
+  border-radius:12px; padding:12px 6px; cursor:pointer; white-space:nowrap;
+  box-shadow:0 2px 0 rgba(0,0,0,.35);
+  transition:transform .12s ease, border-color .12s, box-shadow .12s, background .12s,
+             color .12s, filter .12s;
+  -webkit-tap-highlight-color:transparent;
 }
-.bw-pick .block-title, .bw-pick span[data-testid="block-info"] {
-  color:var(--muted) !important; font-size:11px !important; font-weight:700 !important;
-  text-transform:uppercase; letter-spacing:.1em; opacity:1 !important; margin-bottom:6px !important; }
-.bw-pick .block { padding:6px 0 10px !important; }
-.bw-pick .form, .bw-pick fieldset, .bw-pick .wrap { padding:0 !important; }
-.bw-pick fieldset, .bw-pick .wrap {
-  display:grid !important; grid-template-columns:repeat(4, 1fr); gap:8px;
+.jp-opt:hover { border-color:var(--accent); transform:translateY(-2px);
+  box-shadow:0 6px 16px rgba(0,0,0,.4); }
+.jp-opt:active { transform:translateY(1px); box-shadow:0 1px 0 rgba(0,0,0,.35); }
+.jp-opt:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.jp-opt.on {
+  background:linear-gradient(180deg, #f2cf6a, var(--accent)); color:#1a1300;
+  border-color:#f2cf6a; font-weight:800;
+  box-shadow:0 3px 0 #9c7a18, 0 0 18px rgba(224,169,46,.28);
 }
-.bw-pick label { font-family:var(--ui) !important; font-size:14px !important; font-weight:600 !important;
-  color:var(--text) !important; background:var(--panel) !important; border:1px solid var(--line) !important;
-  border-radius:12px !important; padding:11px 8px !important; cursor:pointer; transition:.1s;
-  display:flex !important; align-items:center; justify-content:center; text-align:center;
-  white-space:nowrap; }
-@media (max-width:520px) { .bw-pick fieldset, .bw-pick .wrap { grid-template-columns:repeat(2, 1fr); } }
-.bw-pick label:hover { border-color:var(--accent); }
-.bw-pick label:has(input:checked) { color:#1a1300 !important; background:var(--accent) !important; border-color:var(--accent) !important; }
-.bw-pick input[type=radio] { display:none !important; }
+.jp-opt.on:hover { transform:none; filter:brightness(1.04); }
+.jp-ico { font-size:16px; line-height:1; }
+@media (max-width:520px) { .jp-grid { grid-template-columns:repeat(2, 1fr); } }
 
 /* ---------------- TITLE HERO ---------------- */
 .hero { position:relative; isolation:isolate; min-height:300px; overflow:hidden;
@@ -125,13 +132,31 @@ footer { display:none !important; }
   letter-spacing:.34em; text-transform:uppercase; margin:5px 0; text-shadow:0 2px 4px #000; }
 .hero p { margin:0 auto; color:#eef1f6; line-height:1.6; text-shadow:0 1px 3px #000, 0 2px 10px #000c; }
 
-/* ---------------- VERDICT INPUT ---------------- */
-.bw-guess textarea {
-  font-size:16px !important; line-height:1.5 !important; background:#fbf7ee !important;
-  color:#1b2230 !important; border:1px solid var(--line) !important; border-radius:12px !important;
-  padding:12px 14px !important;
+/* ---------------- PLEA FIELD (statement of the accused) ----------------
+   Paper court-form: warm paper card with a red legal-pad margin rule, gold
+   focus ring, live character count. */
+.gwrap { display:flex; flex-direction:column; gap:9px; padding:2px 0; }
+.g-paper {
+  position:relative; overflow:hidden; border-radius:14px;
+  background:linear-gradient(#fdf9ef, #f4ecd6); border:1px solid #d8cdb2;
+  box-shadow:0 10px 26px rgba(0,0,0,.4), inset 0 1px 0 #fffef9;
+  transition:border-color .15s, box-shadow .15s;
 }
-.bw-guess textarea::placeholder { color:#7c7466 !important; }
+.g-paper::before { /* red margin rule, legal-pad style */
+  content:""; position:absolute; top:0; bottom:0; left:38px; width:1.5px;
+  background:rgba(192,57,43,.32); pointer-events:none;
+}
+.g-paper:focus-within { border-color:var(--accent);
+  box-shadow:0 10px 26px rgba(0,0,0,.4), 0 0 0 3px rgba(224,169,46,.32); }
+.g-paper textarea {
+  display:block; width:100%; min-height:96px; resize:vertical; box-sizing:border-box;
+  border:none; outline:none; background:transparent; color:#1b2230;
+  font-family:var(--ui); font-size:16px; line-height:1.55; padding:13px 16px 6px 50px;
+}
+.g-paper textarea::placeholder { color:#8a806c; font-style:italic; }
+.g-foot { display:flex; justify-content:flex-end; padding:0 12px 8px; }
+.g-count { font-family:var(--ui); font-size:11px; font-weight:700;
+  letter-spacing:.05em; color:#8a806c; user-select:none; }
 
 /* ---------------- VERDICT + REVEAL ---------------- */
 .verdict { text-align:center; padding:8px 0 4px; }
@@ -281,6 +306,10 @@ footer { display:none !important; }
   .decode-jargon { font-size:13.5px; }
   .decode-plain { font-size:12.5px; }
   .verdict .score { font-size:48px; }
+  .jp-grid { gap:8px; }
+  .jp-opt { font-size:13.5px; padding:11px 4px; }
+  .g-paper textarea { font-size:16px; padding-left:46px; }
+  .g-paper::before { left:34px; }
   .eboard { padding:8px 10px 10px; }
   .note { padding:14px 10px 8px; }
   .note-text { font-size:12.5px; }
