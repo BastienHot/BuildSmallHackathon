@@ -75,9 +75,15 @@ def render_stage(case: Case, line: Line | None, evidence: list[str] | None = Non
     board = (f'<div class="eboard"><div class="eb-head">'
              f'<span class="eb-title">⚖ Evidence board</span>'
              f'<span class="eb-count">{count}</span></div>{body}</div>')
+    # The background lives in its own clipped layer (.stage-bg) so the speech bubble,
+    # a child of the unclipped .stage, can overflow above the frame instead of being
+    # cut off — the courtroom square is small on phones and tall bubbles ran past the
+    # top edge.
     return (
-        f'<div class="stage" style="background-image:url(\'{image_url(case.jargon_style)}\')">'
-        f'<div class="vignette"></div>{bubble}{progress_strip}</div>{board}'
+        f'<div class="stage">'
+        f'<div class="stage-bg" style="background-image:url(\'{image_url(case.jargon_style)}\')">'
+        f'<div class="vignette"></div>{progress_strip}</div>'
+        f'{bubble}</div>{board}'
     )
 
 
