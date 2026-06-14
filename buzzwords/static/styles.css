@@ -9,16 +9,23 @@
 
 footer { display:none !important; }
 /* The app is dark by design: pin every page-level background so the OS
-   light-mode theme (mobile default) can never bleed white through. */
-html, body, gradio-app { background:var(--bg) !important; }
+   light-mode theme (mobile default) can never bleed white through.
+   overflow-x:hidden + max-width:100% are the safety net: inside the HF Spaces
+   iframe a single too-wide element used to push the whole layout sideways, which
+   made %/vw-sized cards compute against the wider page and spill off-screen. */
+html, body, gradio-app {
+  background:var(--bg) !important; max-width:100%; overflow-x:hidden;
+}
 :root { color-scheme:dark; }
 .gradio-container {
   background:var(--bg) !important; max-width:760px !important; margin:0 auto !important;
   padding:16px !important; font-family:var(--ui); color:var(--text);
+  box-sizing:border-box; width:100%; overflow-x:hidden;
 }
-#bw-root { display:flex; flex-direction:column; gap:14px; width:100%; }
-/* concrete width so Gradio's fit-content column doesn't collapse on the stage */
-#bw-screen { width:min(680px,92vw) !important; margin:0 auto; }
+#bw-root { display:flex; flex-direction:column; gap:14px; width:100%; min-width:0; }
+/* width:100% (parent-relative, padding-aware) — NOT 92vw, which measures against
+   the scrollable page width and overshoots whenever anything causes h-scroll. */
+#bw-screen { width:100% !important; max-width:680px; margin:0 auto; box-sizing:border-box; }
 #bw-screen .prose, #bw-screen .html-container { width:100% !important; max-width:100% !important; padding:0 !important; }
 
 /* ---------------- STAGE ---------------- */
@@ -112,6 +119,17 @@ html, body, gradio-app { background:var(--bg) !important; }
 .jp-ico { font-size:16px; line-height:1; }
 @media (max-width:520px) { .jp-grid { grid-template-columns:repeat(2, 1fr); } }
 
+/* ---------------- WALKTHROUGH STEP STRIP (Gradio's stepper) ----------------
+   Its labels ("The hearing", "Your plea", "The verdict") are wide; on a phone the
+   four steps + labels used to overrun the viewport and clip the last one. Keep the
+   circles small, let labels shrink, and never let the row force horizontal scroll. */
+.stepper-container { gap:4px !important; padding:6px 0 !important; min-width:0; }
+.step-item { min-width:0 !important; }
+.step-number { width:30px !important; height:30px !important; font-size:13px !important; }
+.step-label { font-size:12.5px !important; max-width:none !important;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:0 2px; }
+.step-connector { transform:translateY(14px) !important; }
+
 /* ---------------- TITLE HERO ---------------- */
 .hero { position:relative; isolation:isolate; min-height:300px; overflow:hidden;
   display:flex; align-items:center; justify-content:center;
@@ -124,10 +142,12 @@ html, body, gradio-app { background:var(--bg) !important; }
   background:
     radial-gradient(80% 60% at 50% 45%, rgba(8,9,12,.72), rgba(8,9,12,0) 75%),
     linear-gradient(rgba(10,12,16,.62), rgba(10,12,16,.82)); }
-.hero-content { text-align:center; padding:36px 22px; max-width:58ch; }
+.hero-content { text-align:center; padding:36px 22px; max-width:58ch; width:100%;
+  box-sizing:border-box; }
 .hero-emblem { font-size:44px; color:var(--accent); filter:drop-shadow(0 3px 6px #000c); }
-.hero h1 { margin:6px 0 12px; font-weight:800; line-height:1.02; color:#fff;
-  font-size:clamp(28px,4.6vw,42px); text-shadow:0 2px 4px #000, 0 4px 22px #000d; }
+.hero h1 { margin:6px 0 12px; font-weight:800; line-height:1.04; color:#fff;
+  font-size:clamp(26px,4.6vw,42px); overflow-wrap:anywhere; text-wrap:balance;
+  text-shadow:0 2px 4px #000, 0 4px 22px #000d; }
 .hero h1 span { display:block; font-size:.42em; font-weight:700; color:var(--accent);
   letter-spacing:.34em; text-transform:uppercase; margin:5px 0; text-shadow:0 2px 4px #000; }
 .hero p { margin:0 auto; color:#eef1f6; line-height:1.6; text-shadow:0 1px 3px #000, 0 2px 10px #000c; }
@@ -291,9 +311,17 @@ html, body, gradio-app { background:var(--bg) !important; }
 
 /* ---------------- MOBILE (≤480px) ---------------- */
 @media (max-width:480px) {
-  .gradio-container { padding:8px !important; }
-  .hero { min-height:200px !important; }
-  .hero-content { padding:18px 12px; }
+  .gradio-container { padding:10px !important; }
+  .hero { min-height:190px !important; }
+  .hero-content { padding:20px 14px; }
+  .hero-emblem { font-size:36px; }
+  .hero h1 { font-size:clamp(22px,7vw,30px); margin:4px 0 10px; }
+  .hero p { font-size:14px; }
+  .load-desc { font-size:13.5px; }
+  /* stepper: shrink the circles and let labels ellipsis instead of clipping the row */
+  .step-number { width:26px !important; height:26px !important; font-size:12px !important; }
+  .step-label { font-size:11px !important; }
+  .step-connector { transform:translateY(12px) !important; }
   .bubble { max-width:56%; min-width:120px; padding:8px 10px; }
   .bub-text { font-size:14px; }
   .bub-name { font-size:9.5px; }
@@ -313,4 +341,15 @@ html, body, gradio-app { background:var(--bg) !important; }
   .eboard { padding:8px 10px 10px; }
   .note { padding:14px 10px 8px; }
   .note-text { font-size:12.5px; }
+}
+
+/* ---------------- NARROW PHONES (≤360px) ---------------- */
+@media (max-width:360px) {
+  .gradio-container { padding:8px !important; }
+  .hero h1 { font-size:clamp(20px,8vw,26px); }
+  .step-label { font-size:10px !important; }
+  .step-number { width:24px !important; height:24px !important; font-size:11px !important; }
+  .jp-opt { font-size:12.5px; padding:10px 3px; gap:4px; }
+  .jp-ico { font-size:14px; }
+  .loadbar { width:90%; }
 }
