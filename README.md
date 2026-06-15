@@ -8,13 +8,23 @@ app_port: 7860
 pinned: false
 short_description: A courtroom deduction game on one 1B model, fully local on CPU
 tags:
+  - build-small-hackathon
   - thousand-token-wood
-  - local-first
-  - fine-tuned
-  - custom-ui
-  - llama-cpp
-  - open-trace
-  - tentative
+  - track:thousand-token-wood
+  - track:wood
+  - off-the-grid
+  - well-tuned
+  - off-brand
+  - llama-champion
+  - sharing-is-caring
+  - field-notes
+  - achievement:offgrid
+  - achievement:welltuned
+  - achievement:offbrand
+  - achievement:llama
+  - achievement:sharing
+  - achievement:fieldnotes
+  - sponsor:openbmb
 ---
 
 # ⚖️ Buzzwords & Misdemeanors
@@ -48,18 +58,19 @@ one per jargon *style*. Code (GBNF grammars + deterministic guards in
 
 | Badge | Why we qualify |
 |---|---|
-| 🔌 **Local-first** | No cloud APIs — the whole game runs on CPU in the Space. |
-| 🎯 **Fine-tuned** | Our own LoRAs, published on the Hub (director + 8 styles). |
-| 🎨 **Custom UI** | A hand-built courtroom front-end, well past the default Gradio look. |
-| 🦙 **llama.cpp** | Every token runs through a `llama-server` (llama.cpp) runtime. |
-| 📡 **Open trace** | 64 full agent traces published as a dataset. |
+| 🔌 **Off the Grid** (local-first) | No cloud APIs — the whole game runs on CPU in the Space. |
+| 🎯 **Well-Tuned** (fine-tuned) | Our own LoRAs, published on the Hub (director + 8 styles). |
+| 🎨 **Off-Brand** (custom UI) | A hand-built courtroom front-end, well past the default Gradio look. |
+| 🦙 **Llama Champion** (llama.cpp) | Every token runs through a `llama-server` (llama.cpp) runtime. |
+| 📡 **Sharing is Caring** (open trace) | 64 full agent traces published as a dataset. |
 | 📓 **Field Notes** | A complete build log: [`docs/FIELD_NOTES.md`](docs/FIELD_NOTES.md). |
 
 **Links** — Blog: [`docs/FIELD_NOTES.md`](docs/FIELD_NOTES.md) ·
 Adapters: [director](https://huggingface.co/BastienHot/buzzwords-director-lora),
 [styles](https://huggingface.co/BastienHot/buzzwords-style-loras) ·
 Traces: [dataset](https://huggingface.co/datasets/BastienHot/buzzwords-agent-trace) ·
-Demo video: _<add link>_ · Social post: _<add link>_
+Demo video: [YouTube](https://www.youtube.com/watch?v=0eOhEZv1-Nk) ·
+Social post: _<add link>_
 
 ## How it works
 
