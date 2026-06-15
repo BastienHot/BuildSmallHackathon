@@ -1,4 +1,4 @@
-"""THE single source of truth for every model-facing contract (REBUILD_REVIEW.md §10.1).
+"""THE single source of truth for every model-facing contract.
 
 Grammars, system prompts, prompt builders, enums, and budgets live HERE and only here.
 The runtime (buzzwords.engine / buzzwords.pipeline) and every offline training script
@@ -24,13 +24,13 @@ BEATS = ["opening", "charge", "evidence", "objection", "escalate", "plea",
          "cross_examine", "closing", "exchange"]
 STYLES = ["corporate", "aviation", "ai", "politics", "medical", "gaming", "sports", "scifi"]
 
-TURN_BUDGET = 10          # one fixed budget; the difficulty axis was removed (§12)
+TURN_BUDGET = 10 # one fixed budget; the difficulty axis was removed
 WRAP_PRESSURE_AT = 2      # start nudging the GM to converge this many beats from the end
 N_FACTS = 3               # EXACTLY three clue facts (player decision: fixed, not random)
 MIN_FACTS = MAX_FACTS = N_FACTS
 
 # Beat -> speakers allowed to deliver it. The GM decision is remapped through this in
-# code (deterministic guard, §13.2): a prosecutor must never deliver the defense's plea.
+# code (deterministic guard): a prosecutor must never deliver the defense's plea.
 BEAT_SPEAKERS = {
     "opening": {"judge", "prosecutor"},   # judge opens the session OR prosecution's opening statement
     "charge": {"prosecutor"},
@@ -51,7 +51,7 @@ BEAT_SPEAKERS = {
 _STR = (r'string ::= "\"" ([^"\\\x00-\x1F\x7F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F]))* "\""'
         + "\n" + r'ws ::= [ \t]*')
 
-# The director writes ONLY the oblique facts; profession/fault are sampled in code (§13.4).
+# The director writes ONLY the oblique facts; profession/fault are sampled in code.
 FACTS_GRAMMAR = (r"""
 root ::= "{" ws "\"facts\":" ws facts ws "}"
 facts ::= "[" ws string ws "," ws string ws "," ws string ws "]"
@@ -59,7 +59,7 @@ facts ::= "[" ws string ws "," ws string ws "," ws string ws "]"
 
 # One beat from a finite deck — INCLUDING the spoken line, in PLAIN English (SHAPE 3.0):
 # the director authors the content; the actor only restyles it. fact_index points into
-# the case file's facts; when set, the line must carry that fact's content (§13.5).
+# the case file's facts; when set, the line must carry that fact's content.
 DECISION_GRAMMAR = (r"""
 root ::= "{" ws "\"next_speaker\":" ws speaker ws "," ws "\"beat_type\":" ws beat ws "," ws "\"fact_index\":" ws factidx ws "," ws "\"intensity\":" ws intensity ws "," ws "\"line\":" ws string ws "," ws "\"wrap_up\":" ws bool ws "}"
 speaker ::= "\"judge\"" | "\"prosecutor\"" | "\"defense\""
@@ -118,7 +118,7 @@ def actor_system(role: str, style: str | None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# User-prompt builders. NOTE: the GM prompt is STABLE-PREFIX (§4.2): the brief and the
+# User-prompt builders. NOTE: the GM prompt is STABLE-PREFIX: the brief and the
 # numbered facts come first and never change; the transcript is append-only; only the
 # short final status line changes per beat — so llama-server's prompt cache re-evaluates
 # ~one line per beat instead of the whole context.
@@ -194,7 +194,7 @@ def valid_decision(d: dict) -> bool:
 # ---------------------------------------------------------------------------
 # Deterministic guards (code is for invariants; learned behavior is for quality).
 # Shared verbatim by the runtime (pipeline), the e2e gate, and the datagen force rule
-# so all three regimes enforce the SAME rules (REBUILD_REVIEW.md §13.2-13.3, §13.6).
+# so all three regimes enforce the SAME rules.
 # ---------------------------------------------------------------------------
 _GUARD_PRIORITY = {"defense": 0, "judge": 1, "prosecutor": 2}  # ties favor under-used roles
 
@@ -208,9 +208,9 @@ def guard_speaker(speaker: str, beat: str, history: list[str],
     """Sequencing seatbelt. `history` = speakers of the lines so far. Returns
     (speaker, beat); the GM keeps owning intensity/stage_direction/wrap_up.
 
-    1. Role/beat compatibility — a prosecutor never delivers the plea (§13.2).
-    2. Never the same speaker three times in a row (§13.3).
-    3. The defense must have spoken by the budget midpoint (§13.3)."""
+    1. Role/beat compatibility — a prosecutor never delivers the plea.
+    2. Never the same speaker three times in a row.
+    3. The defense must have spoken by the budget midpoint."""
     allowed = BEAT_SPEAKERS[beat]
     if speaker not in allowed:
         speaker = _least_used(allowed, history)
@@ -230,7 +230,7 @@ def guard_speaker(speaker: str, beat: str, history: list[str],
 
 
 def forced_fact(n_facts: int, released: set, turn: int, budget: int) -> int | None:
-    """Clue economy (§13.5): if the remaining beats are no more than the unreleased
+    """Clue economy: if the remaining beats are no more than the unreleased
     facts, force the next unreleased one so the full clue set reaches the player."""
     unreleased = [i for i in range(n_facts) if i not in released]
     return unreleased[0] if unreleased and (budget - turn) <= len(unreleased) else None

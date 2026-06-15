@@ -1,6 +1,6 @@
 """Two-stage curriculum LoRA for the ACTORS on Modal GPU (checkpoint-fork, NOT merge).
 
-Student: MiniCPM5-1B (Llama archi), bf16 LoRA (not QLoRA — REBUILD_REVIEW.md §6.4):
+Student: MiniCPM5-1B (Llama archi), bf16 LoRA (not QLoRA):
 
   Stage 1  -- ONE LoRA (config C) on legal_generic.jsonl -> `legal_base`.
   Stage 2  -- per style: INITIALIZE from `legal_base` (same config C), FRESH run
@@ -15,7 +15,7 @@ SHAPE_VERSION check) live in training/train_common.py.
   modal run training/finetune.py --only-stage1
 Then benchmark with training/evaluate.py before converting to GGUF.
 
-NOTE: the stage-1-helps ablation (§6.5) is one command:
+NOTE: the stage-1-helps ablation is one command:
   modal run training/finetune.py --style corporate --skip-stage1 --no-fork
 compares against the forked run's train_metrics.json + evaluate.py results.
 """
@@ -65,7 +65,7 @@ def main(style: str = "", only_stage1: bool = False, skip_stage1: bool = False,
     if only_stage1:
         return
     styles = [s.strip() for s in style.split(",")] if style else contracts.STYLES
-    init = None if no_fork else "legal_base"   # --no-fork = the §6.5 ablation arm
+    init = None if no_fork else "legal_base" # --no-fork = the ablation arm
     for s in styles:
         out = f"actor_{s}" + ("_nofork" if no_fork else "")
         train.remote(f"style_{s}.jsonl", out, init_adapter=init)

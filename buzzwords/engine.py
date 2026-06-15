@@ -2,22 +2,22 @@
 
 ONE resident MiniCPM5-1B base; the director LoRA and every present style LoRA are
 registered at startup with --lora-init-without-apply (all scales 0) and activated
-PER REQUEST via the `lora` field — no merge, no reload, no second copy of the base
-(REBUILD_REVIEW.md §8.2). Unmerged adapters run through the same AVX2 kernels as the
-base; the rank-32 overhead is a few percent per token.
+PER REQUEST via the `lora` field — no merge, no reload, no second copy of the base.
+Unmerged adapters run through the same AVX2 kernels as the base; the rank-32 overhead
+is a few percent per token.
 
 Slots: the GM is pinned to slot 0 and the actor to slot 1 (`id_slot`), so each keeps
 its own warm prompt cache (`cache_prompt: true`). The GM prompt is stable-prefix /
 append-only (contracts.gm_user), so per-beat prefill is ~one new line, not the
-whole transcript (§4.2).
+whole transcript.
 
 Thinking is suppressed twice: structurally for the GM (every grammar starts with
 root ::= "{") and explicitly for everyone via chat_template_kwargs
-{"enable_thinking": false} (§4.5). A startup self-test asserts the actor path
+{"enable_thinking": false}. A startup self-test asserts the actor path
 actually returns clean text.
 
 All calls are serialized behind one lock: 2 vCPUs can't run two generations anyway,
-and it makes the engine safe under Gradio's concurrent event listeners (§4.6).
+and it makes the engine safe under Gradio's concurrent event listeners.
 """
 
 from __future__ import annotations
@@ -102,7 +102,7 @@ class TextEngine:
         raise EngineError(f"llama-server not healthy after {timeout:.0f}s")
 
     def _self_test(self) -> None:
-        """Assert the actor path returns clean, non-empty, think-free text (§4.5)."""
+        """Assert the actor path returns clean, non-empty, think-free text."""
         out = self._chat(config.ACTOR_SLOT, None,
                          contracts.actor_system("judge", "corporate"),
                          contracts.actor_user("This hearing is called to order."),

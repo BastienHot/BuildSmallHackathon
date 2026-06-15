@@ -1,0 +1,50 @@
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'Inter, Segoe UI, system-ui, sans-serif','fontSize':'14px','actorBkg':'#eef2ff','actorBorder':'#6366f1','actorTextColor':'#1e1b4b','signalColor':'#475569','signalTextColor':'#0f172a','noteBkg':'#fffbeb','noteBorder':'#f59e0b','noteTextColor':'#78350f','loopTextColor':'#334155','activationBkg':'#ddd6fe'},'sequence':{'mirrorActors':false,'boxMargin':8}}}%%
+sequenceDiagram
+    autonumber
+    actor P as 🧑 Player
+    participant UI as 🎮 Gradio UI
+    participant PL as ⚙️ Pipeline
+    participant CT as 📐 Code contracts<br/>guards · grammar · leak filter
+    participant GM as 🎬 Director<br/>(director LoRA)
+    participant AC as 🎭 Actor<br/>(style LoRA)
+
+    rect rgb(240, 253, 244)
+    Note over P,AC: ① Case assembly — the truth is sampled in code, never generated
+    P->>UI: pick a jargon, start the hearing
+    UI->>PL: new_case(jargon)
+    PL->>CT: sample profession + domain-matched fault<br/>(jargon's own domain excluded)
+    PL->>GM: write 3 oblique clue facts
+    GM-->>PL: facts
+    PL->>CT: leak-check each fact (retry · fallback bank)
+    end
+
+    rect rgb(245, 243, 255)
+    Note over UI,AC: ② Turn loop — the WHOLE hearing pre-generates behind a progress bar
+    loop each beat · until wrap-up or budget
+        PL->>GM: decide next beat (grammar-constrained)
+        GM-->>PL: speaker · beat · fact_index · intensity · plain line
+        PL->>CT: guards remap invariants + leak-check the plain line
+        PL->>AC: translate plain line into the jargon (public info only)
+        AC-->>PL: dense in-style courtroom line
+        PL->>CT: leak-check jargon line (fall back to plain line if needed)
+        PL-->>UI: beat cached · progress bar advances
+    end
+    end
+
+    rect rgb(255, 247, 237)
+    Note over P,UI: ③ Playback is instant — zero model calls
+    loop player steps through cached beats
+        P->>UI: Next / Back
+        UI-->>P: speech bubble + exhibit pinned to the board
+    end
+    end
+
+    rect rgb(254, 242, 242)
+    Note over P,GM: ④ Plea & verdict
+    P->>UI: enter a plain-English plea
+    UI->>PL: score_guess(plea)
+    PL->>CT: empty / sub-3-char plea → score 0, model never called
+    PL->>GM: grade a real plea (0–100 + rationale)
+    GM-->>PL: score + one-sentence rationale
+    UI-->>P: verdict + the real profession & charge revealed
+    end

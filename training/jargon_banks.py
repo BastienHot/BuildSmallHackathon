@@ -1,6 +1,6 @@
 """Curated jargon banks, one list per style.
 
-Used to ANCHOR the teacher (docs/ARCHITECTURE.md §7.1): each generation prompt gets a
+Used to ANCHOR the teacher: each generation prompt gets a
 random seeded subset of its style's bank woven in, so transcripts pull from the full
 vocabulary instead of the model recycling the same five phrases. Keys must match
 config.JARGONS / teacher_datagen.STYLES.

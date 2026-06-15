@@ -1,0 +1,38 @@
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'Inter, Segoe UI, system-ui, sans-serif','fontSize':'16px','lineColor':'#64748b','clusterBkg':'#ffffff','clusterBorder':'#cbd5e1','edgeLabelBackground':'#ffffff'},'flowchart':{'htmlLabels':true,'padding':14,'nodeSpacing':55,'rankSpacing':70,'subGraphTitleMargin':{'top':6,'bottom':12}}}}%%
+flowchart LR
+    FACT("📄 hidden clue fact<br/><i>«no signature on the waiver»</i>")
+
+    subgraph BROKEN["❌ transcript only"]
+        direction LR
+        ACTOR("🎭 actor<br/>style LoRA")
+        LINE("💬 jargon line<br/><i>«missing flight-signature»</i>")
+        SOLVER1("🟥 solver<br/>0 / 12")
+        ACTOR --> LINE --> SOLVER1
+    end
+
+    subgraph FIXED["✅ + evidence board"]
+        direction LR
+        BOARD("📌 evidence board<br/>verbatim to player")
+        SOLVER2("🟩 solver<br/>31.75 · in band")
+        BOARD --> SOLVER2
+    end
+
+    FACT -->|"re-encoded"| ACTOR
+    FACT ==>|"the fix"| BOARD
+
+    classDef fact      fill:#cdf2f7,stroke:#06b6d4,stroke-width:2px,color:#155e75;
+    classDef model     fill:#e3dbf7,stroke:#8b5cf6,stroke-width:2px,color:#4c1d95;
+    classDef line      fill:#dfe3fb,stroke:#6366f1,stroke-width:2px,color:#1e1b4b;
+    classDef bad       fill:#fcdada,stroke:#ef4444,stroke-width:2px,color:#7f1d1d;
+    classDef good      fill:#cdeee0,stroke:#10b981,stroke-width:2px,color:#064e3b;
+    classDef board     fill:#fdeecb,stroke:#f59e0b,stroke-width:2px,color:#78350f;
+
+    class FACT fact;
+    class ACTOR model;
+    class LINE line;
+    class SOLVER1 bad;
+    class SOLVER2 good;
+    class BOARD board;
+
+    style BROKEN fill:#fdf2f2,stroke:#fca5a5,stroke-width:2px,color:#7f1d1d;
+    style FIXED fill:#f0fdf8,stroke:#86efac,stroke-width:2px,color:#14532d;

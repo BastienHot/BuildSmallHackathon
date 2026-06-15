@@ -1,0 +1,51 @@
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'Inter, Segoe UI, system-ui, sans-serif','fontSize':'16px','lineColor':'#64748b','clusterBkg':'#ffffff','clusterBorder':'#cbd5e1','edgeLabelBackground':'#ffffff'},'flowchart':{'htmlLabels':true,'padding':14,'nodeSpacing':50,'rankSpacing':70,'subGraphTitleMargin':{'top':6,'bottom':12}}}}%%
+flowchart LR
+    subgraph OFFLINE["☁️ Offline · Modal"]
+        direction TB
+        TEACH("🎓 Gemma 4 31B<br/>teacher")
+        TRAIN("🏋️ LoRA training")
+        GATE("✅ gate suite")
+        TEACH --> TRAIN --> GATE
+    end
+
+    HUB("🤗 Hugging Face<br/>Hub")
+
+    subgraph SPACE["🖥️ Free Space · 2 vCPU · no GPU"]
+        direction TB
+        UI("🎮 Gradio UI")
+        PIPE("⚙️ pipeline<br/>guards · leak checks")
+        CT("📐 contracts.py<br/>single source of truth")
+        subgraph LS["llama-server"]
+            direction TB
+            BASE("🧠 MiniCPM5-1B base<br/>Q4_K_M · one in RAM")
+            DLORA("🎬 director LoRA")
+            SLORA("🎭 8 style LoRAs")
+            BASE === DLORA
+            BASE === SLORA
+        end
+        UI --> PIPE
+        PIPE -->|"HTTP"| LS
+        CT -. "imported" .-> PIPE
+        CT -. "imported" .-> LS
+    end
+
+    GATE ==>|"9 / 9 pass"| HUB
+    HUB ==>|"pulled at startup"| LS
+
+    classDef ui        fill:#cdeee0,stroke:#10b981,stroke-width:2px,color:#064e3b;
+    classDef pipe      fill:#fde6cc,stroke:#f97316,stroke-width:2px,color:#7c2d12;
+    classDef code      fill:#cdf2f7,stroke:#06b6d4,stroke-width:2px,color:#155e75;
+    classDef director  fill:#cdeecb,stroke:#22c55e,stroke-width:2px,color:#14532d;
+    classDef model     fill:#e3dbf7,stroke:#8b5cf6,stroke-width:2px,color:#4c1d95;
+    classDef hub       fill:#fdeecb,stroke:#f59e0b,stroke-width:2px,color:#78350f;
+
+    class UI ui;
+    class PIPE,TRAIN pipe;
+    class CT,GATE code;
+    class DLORA director;
+    class BASE,SLORA,TEACH model;
+    class HUB hub;
+
+    style SPACE fill:#f0fdf8,stroke:#86efac,stroke-width:2px,color:#14532d;
+    style LS fill:#faf5ff,stroke:#c4b5fd,stroke-width:2px,color:#5b21b6;
+    style OFFLINE fill:#f0f7ff,stroke:#93c5fd,stroke-width:2px,color:#1e3a8a;

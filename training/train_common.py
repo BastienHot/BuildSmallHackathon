@@ -1,16 +1,16 @@
 """Shared training core for the actor and director LoRAs (runs INSIDE Modal containers).
 
-Implements the REBUILD_REVIEW.md Phase-2 decisions in one place:
+Implements the Phase-2 decisions in one place:
   * bf16 LoRA (NOT QLoRA) -- a 1B trains comfortably in bf16; zero training-side
-    quantization noise; the e2e llama.cpp gate validates the serving-side quant (§6.4).
+    quantization noise; the e2e llama.cpp gate validates the serving-side quant.
   * GROUP-wise train/val split on group_id -- sibling examples from one transcript/game
-    never straddle the split, so eval_loss/perplexity mean what they claim (§6.1).
+    never straddle the split, so eval_loss/perplexity mean what they claim.
   * Completion-only loss -- the assistant response is the only supervised span; the
-    repetitive prompt boilerplate contributes nothing to the gradient (§6.2).
-  * enable_thinking=False at templating time + a rendered-example audit (§6.3).
-  * Fixed seed + enriched train_metrics.json (config, manifest ref, git-able) (§6.5).
+    repetitive prompt boilerplate contributes nothing to the gradient.
+  * enable_thinking=False at templating time + a rendered-example audit.
+  * Fixed seed + enriched train_metrics.json (config, manifest ref, git-able).
   * Manifest SHAPE_VERSION check -- training refuses data generated under a different
-    prompt-shape contract (§5.5).
+    prompt-shape contract.
 """
 
 from __future__ import annotations
@@ -32,14 +32,14 @@ _THINK_MARKERS = ("<think", "<|thought_begin|>")
 
 
 def check_manifest(data_dir: str, dataset: str, shape_version: str) -> dict | None:
-    """Refuse data whose prompt-shape contract differs from the code's (§5.5)."""
+    """Refuse data whose prompt-shape contract differs from the code's."""
     import json
     import os
     path = os.path.join(data_dir, dataset.replace(".jsonl", ".manifest.json"))
     if not os.path.exists(path):
         # No manifest = unverifiable provenance = very likely a stale pre-rebuild file
         # still sitting on the volume. Refuse — this exact hole shipped mismatch-trained
-        # actors once already (REBUILD_REVIEW.md §5.1/§5.5).
+        # actors once already.
         raise RuntimeError(f"no manifest at {path} — refusing to train on unverifiable data; "
                            f"regenerate {dataset} with the current datagen")
     manifest = json.load(open(path, encoding="utf-8"))
@@ -51,7 +51,7 @@ def check_manifest(data_dir: str, dataset: str, shape_version: str) -> dict | No
 
 
 def group_split(ds, test_frac: float = 0.05, seed: int = SEED):
-    """Split by unique group_id so sibling rows never leak across the split (§6.1)."""
+    """Split by unique group_id so sibling rows never leak across the split."""
     import random
     groups = sorted(set(ds["group_id"]))
     rng = random.Random(seed)
@@ -71,7 +71,7 @@ def render_prompt_completion(tok, conversations) -> tuple[str, str]:
     <think></think> block on MiniCPM5); completion = the assistant answer + the turn
     terminator. Plain full-conversation templating omits the empty think block and would
     train the model one prefix away from the prompt it always sees at inference
-    (verified by probing the tokenizer — §6.3)."""
+    (verified by probing the tokenizer —)."""
     prompt = tok.apply_chat_template(conversations[:-1], tokenize=False,
                                      add_generation_prompt=True, enable_thinking=False)
     return prompt, conversations[-1]["content"] + _assistant_end(tok)
@@ -81,7 +81,7 @@ def mask_parts(tok) -> tuple[str, str]:
     """(instruction_part, response_part) for unsloth's train_on_responses_only, derived
     by probing the template. response_part is the FULL generation prefix after the user
     content (assistant header + empty think block), so the supervised span starts at
-    exactly the first answer token — same boundary as render_prompt_completion (§6.2)."""
+    exactly the first answer token — same boundary as render_prompt_completion."""
     gen = tok.apply_chat_template(
         [{"role": "system", "content": "@@S@@"}, {"role": "user", "content": "@@U@@"}],
         tokenize=False, add_generation_prompt=True, enable_thinking=False)
@@ -101,7 +101,7 @@ def _assistant_end(tok) -> str:
 
 def audit_example(tok, text: str) -> None:
     """Print one fully rendered training example; assert the think channel is CLOSED
-    (the empty <think></think> prefix is expected; any think CONTENT is not) (§6.3)."""
+    (the empty <think></think> prefix is expected; any think CONTENT is not)."""
     print("--- rendered training example (audit) ---")
     print(text[:600])
     stripped = text.replace("<think>\n\n</think>", "").lower()
@@ -127,7 +127,7 @@ def run_training(*, base_model: str, dataset: str, out_name: str, data_dir: str,
 
     if init_adapter:
         # Stage-2 FORK: load the saved adapter dir as the starting model (fresh optimizer,
-        # fresh schedule) — NOT resume_from_checkpoint (§3.5).
+        # fresh schedule) — NOT resume_from_checkpoint.
         model, tok = FastLanguageModel.from_pretrained(
             f"{out_dir}/{init_adapter}", max_seq_length=4096,
             load_in_4bit=False, dtype=torch.bfloat16)
@@ -152,7 +152,7 @@ def run_training(*, base_model: str, dataset: str, out_name: str, data_dir: str,
                        eval_strategy="steps", eval_steps=50,
                        per_device_eval_batch_size=8, **TRAIN),
     )
-    # unsloth-native completion-only loss (§6.2): mask everything before the derived
+    # unsloth-native completion-only loss: mask everything before the derived
     # response marker (assistant header + empty think block) — exact answer boundary.
     from unsloth.chat_templates import train_on_responses_only
     instruction_part, response_part = mask_parts(tok)

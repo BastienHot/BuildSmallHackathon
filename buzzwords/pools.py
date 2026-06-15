@@ -1,6 +1,6 @@
 """Curated content pools: the hidden truths the game is built from.
 
-The truth of a case is SAMPLED IN CODE from these pools (REBUILD_REVIEW.md §10.2/§13.4):
+The truth of a case is SAMPLED IN CODE from these pools:
 each profession carries a domain tag and 3 domain-matched faults, so profession/fault
 coherence and the smokescreen (profession-domain ⊥ jargon-style) are guarantees, never
 learned behaviors. The director model only ever writes the oblique facts.
@@ -392,7 +392,7 @@ def eligible_professions(style: str) -> list[str]:
 
 def sample_case(rng: random.Random, style: str) -> tuple[str, str]:
     """Sample (profession, matched fault) for a jargon style. Smokescreen + profession/
-    fault coherence hold by construction (REBUILD_REVIEW.md §13.4)."""
+    fault coherence hold by construction."""
     profession = rng.choice(eligible_professions(style))
     return profession, rng.choice(PROFESSIONS[profession][1])
 

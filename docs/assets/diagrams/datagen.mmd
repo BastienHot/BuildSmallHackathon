@@ -1,0 +1,27 @@
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'Inter, Segoe UI, system-ui, sans-serif','fontSize':'16px','lineColor':'#64748b','clusterBkg':'#ffffff','clusterBorder':'#cbd5e1','edgeLabelBackground':'#ffffff'},'flowchart':{'htmlLabels':true,'padding':14,'nodeSpacing':55,'rankSpacing':70}}}%%
+flowchart LR
+    POOLS("📚 truth pools<br/>66 × 3, domain-matched")
+    SPEC("🎲 seeded case")
+    T("🎓 Gemma 31B<br/>teacher")
+    V{"🔎 validators<br/>runtime contracts"}
+    RETRY("♻️ corrective<br/>retry")
+    DS("💾 dataset<br/>+ manifest")
+    TR("🏋️ training<br/>refuses stale shapes")
+
+    POOLS -->|"sample truth"| SPEC --> T --> V
+    V -->|"reject"| RETRY
+    RETRY -.->|"re-prompt"| T
+    V ==>|"kept"| DS ==> TR
+
+    classDef code      fill:#cdf2f7,stroke:#06b6d4,stroke-width:2px,color:#155e75;
+    classDef pipe      fill:#fde6cc,stroke:#f97316,stroke-width:2px,color:#7c2d12;
+    classDef model     fill:#e3dbf7,stroke:#8b5cf6,stroke-width:2px,color:#4c1d95;
+    classDef gate      fill:#cdeecb,stroke:#22c55e,stroke-width:2px,color:#14532d;
+    classDef data      fill:#fdeecb,stroke:#f59e0b,stroke-width:2px,color:#78350f;
+    classDef retry     fill:#fcdada,stroke:#ef4444,stroke-width:2px,color:#7f1d1d;
+
+    class POOLS,SPEC,TR code;
+    class T model;
+    class V gate;
+    class DS data;
+    class RETRY retry;

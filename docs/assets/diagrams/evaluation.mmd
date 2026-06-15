@@ -1,0 +1,36 @@
+%%{init: {'theme':'base','themeVariables':{'fontFamily':'Inter, Segoe UI, system-ui, sans-serif','fontSize':'16px','lineColor':'#64748b','clusterBkg':'#ffffff','clusterBorder':'#cbd5e1','edgeLabelBackground':'#ffffff'},'flowchart':{'htmlLabels':true,'padding':14,'nodeSpacing':55,'rankSpacing':70,'subGraphTitleMargin':{'top':6,'bottom':12}}}}%%
+flowchart LR
+    subgraph L12["learned-behaviour benches"]
+        direction TB
+        A("① held-out bench<br/>0.87 vs 0.64 ceiling")
+        B("② actor bench<br/>style lift")
+    end
+
+    C("③ e2e gate<br/>self-rollout games")
+    M("🔧 machinery<br/>checks")
+    S{"🎯 solvability<br/>land in 30–85"}
+    SHIP("🚢 ship · 9/9")
+    FIX("🔁 iterate")
+
+    A --> C
+    B --> C
+    C --> M --> S
+    S ==>|"in band"| SHIP
+    S -->|"out of band · veto"| FIX
+    FIX -.->|"re-run"| C
+
+    classDef bench     fill:#cdf2f7,stroke:#06b6d4,stroke-width:2px,color:#155e75;
+    classDef e2e       fill:#e3dbf7,stroke:#8b5cf6,stroke-width:2px,color:#4c1d95;
+    classDef check     fill:#fde6cc,stroke:#f97316,stroke-width:2px,color:#7c2d12;
+    classDef veto      fill:#fdeecb,stroke:#f59e0b,stroke-width:2px,color:#78350f;
+    classDef ship      fill:#cdeee0,stroke:#10b981,stroke-width:2px,color:#064e3b;
+    classDef fix       fill:#fcdada,stroke:#ef4444,stroke-width:2px,color:#7f1d1d;
+
+    class A,B bench;
+    class C e2e;
+    class M check;
+    class S veto;
+    class SHIP ship;
+    class FIX fix;
+
+    style L12 fill:#f0f7ff,stroke:#93c5fd,stroke-width:2px,color:#1e3a8a;

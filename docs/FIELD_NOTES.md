@@ -31,7 +31,7 @@ the actors. One ~0.8 GB base, nine ~50 MB hats.
 <!-- 📷 IMAGE SLOT: docs/assets/img/hero_hearing.png — the hearing screen mid-game:
      courtroom backdrop, a prosecutor speech bubble, and 2-3 exhibits pinned on the
      evidence board below. This is THE shot; take it in the aviation court. -->
-![The hearing: jargon theater above, the evidence board below](assets/img/hero_hearing.png)
+![The hearing: jargon theater above, the evidence board below](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/hero_hearing.png)
 
 This document is the project's field log, written the way we wish more project
 write-ups were written: not the sanitized version, but the actual sequence — including
@@ -49,12 +49,12 @@ them honestly than imply a balanced division of labor that didn't exist.
 
 **Bastien** (writing this) did the bulk of the build: the game design, the architecture
 calls, the training pipeline, the evaluation methodology, the deployment, and the long
-tail of debugging that is most of any real project. **A classmate** joined not because
+tail of debugging that is most of any real project. **Alexandre**, a classmate, joined not because
 the project needed more hands but because it was a teaching opportunity — he is earlier
 in his ML journey, and walking someone through *why* a train/inference shape mismatch
 silently poisons a fine-tune, or why a single greedy trajectory cannot evaluate a
 policy, turns out to be the best way to find the holes in your own understanding.
-Explaining the project sharpened it. **Our third teammate** owns everything you see:
+Explaining the project sharpened it. Our third teammate, **Fatih** owns everything you see:
 the pixel-art courtroom backdrops — sixteen variants for each of seven court themes,
 generated and curated for the game's eight jargon styles — which give the game its
 character far more than any line of Python does.
@@ -85,49 +85,25 @@ who is speaking, and — fatally for this game — they blurt out the secret the
 supposed to deduce. So we borrowed the structure of a film set instead.
 
 A **Game Master** owns the truth and the pacing, and never speaks in character. Each
-turn it emits one small structured decision: who speaks next, what kind of beat it is
+turn it emits one small structured decision — who speaks next, what kind of beat it is
 (an objection, a piece of evidence, a plea…), which hidden clue to surface (or none),
-how intense the line should be, a one-sentence stage direction, and whether the hearing
-should start wrapping up. Three **actors** — judge, prosecutor, defense — turn that
-decision into a line of dialogue. The actors see only public information: the stage
-direction, the last two spoken lines, and, when the director surfaces one, the verbatim
-text of an oblique clue. They never see the profession or the charge. **An actor
-cannot leak a secret it does not have.** That guarantee is structural, not behavioral,
-and it is the first instance of the design rule this whole project runs on:
+how intense the line should be, whether the hearing should start wrapping up — and,
+reacting to the transcript so far, **it writes that speaker's line itself, in plain
+courtroom English**. Three **actors** — judge, prosecutor, defense — do not invent
+dialogue; they are **translators**: each receives only the director's one plain line and
+rewrites it into its assigned jargon style. An actor never sees the profession, the
+charge, or even the rest of the transcript — only the public line it is handed. **An
+actor cannot leak a secret it does not have.** That guarantee is structural, not
+behavioral, and it is the first instance of the design rule this whole project runs on:
 
 > **Code enforces invariants; models provide quality.** Anything the game cannot
 > survive losing — the smokescreen, the clue economy, courtroom turn order, "never name
 > the profession" — is enforced deterministically in code. The models make it *good*;
 > they are never the only thing making it *correct*.
 
-Here is one complete beat of the game, end to end — every box on the right is the
-same 1B model wearing a different hat:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant P as Player
-    participant UI as Gradio UI
-    participant PL as Pipeline
-    participant G as Guards (code)
-    participant GM as Director<br/>(base + director LoRA, slot 0)
-    participant AC as Actor<br/>(base + style LoRA, slot 1)
-
-    PL->>GM: decide(brief, full transcript, beat n/10, forced fact?)
-    Note over GM: GBNF grammar forces JSON:<br/>speaker · beat · fact_index ·<br/>intensity · stage direction · wrap_up
-    GM-->>PL: {"next_speaker":"prosecutor", "beat_type":"plea", ...}
-    PL->>G: guard_speaker(decision, history)
-    Note over G: prosecutor cannot plead →<br/>remap to defense (seatbelt,<br/>fires on ~2% of beats)
-    G-->>PL: {"next_speaker":"defense", "beat_type":"plea"}
-    PL->>AC: act(stage direction, last 2 lines, fact text, intensity)
-    Note over AC: sees ONLY public info —<br/>cannot leak what it never had
-    AC-->>PL: "Objection! My client was operating in a dead vector…"
-    PL->>PL: leak check (word-boundary, profession tokens)
-    PL-->>UI: line + fact_index
-    UI-->>P: speech bubble + exhibit pinned to the evidence board
-```
-
-Three mechanisms implement the director side of that rule:
+That maxim cuts two ways. The *actor* side is the can't-leak guarantee just described:
+structural, not learned. The *director* side — keeping the Game Master on the rails —
+is enforced by three code mechanisms:
 
 **Grammars.** Every Game Master output is constrained by a `llama.cpp` GBNF grammar.
 A 1B-class model invents badly but classifies well, so "direct the scene" is reduced to
@@ -136,7 +112,7 @@ A 1B-class model invents badly but classifies well, so "direct the scene" is red
 ```gbnf
 root ::= "{" ws "\"next_speaker\":" ws speaker ws "," ws "\"beat_type\":" ws beat
          ws "," ws "\"fact_index\":" ws factidx ws "," ws "\"intensity\":" ws intensity
-         ws "," ws "\"stage_direction\":" ws string ws "," ws "\"wrap_up\":" ws bool ws "}"
+         ws "," ws "\"line\":" ws string ws "," ws "\"wrap_up\":" ws bool ws "}"
 speaker ::= "\"judge\"" | "\"prosecutor\"" | "\"defense\""
 ```
 
@@ -174,34 +150,22 @@ manifest carries a different shape version. This sounds like bureaucracy until y
 Part III, where the absence of exactly this mechanism is how we shipped actors trained
 on a distribution the game never produces.
 
+<!-- 📷 IMAGE SLOT: docs/assets/img/jargon_picker.png — the Charges screen: title hero
+     + the 4×2 icon grid of jargon cards (one selected, gold). -->
+![Choosing your smokescreen: the jargon picker](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/jargon_picker.png)
+
+With those pieces in place — the director, the actors, and the code that fences them in —
+here is one whole game end to end: pick a jargon, the hearing pre-generates behind a
+progress bar, then the player steps through the cached beats and enters a plea. The two
+right-hand boxes (director and actors) are the same 1B base wearing different hats.
+
+<!-- diagram source: docs/assets/diagrams/interactions.mmd — rendered to PNG (HF blog does not render mermaid) -->
+![Sequence diagram: one game, from jargon pick to verdict](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_interactions.png)
+
 ## Part II — One base, many hats: the architecture
 
-```mermaid
-flowchart LR
-    subgraph SPACE["🖥️ Free HF Space — 2 vCPU, no GPU"]
-        UI["Gradio UI<br/>(walkthrough: charges → hearing → plea → verdict)"]
-        PIPE["pipeline.py<br/>sampled truth · guards · fact scheduling · leak checks"]
-        CONTRACTS["contracts.py<br/>grammars · prompts · guards · SHAPE_VERSION<br/>(single source of truth)"]
-        subgraph LS["llama-server (subprocess, AVX2 build)"]
-            BASE["MiniCPM5-1B · Q4_K_M<br/>ONE resident copy"]
-            DLORA["director.lora.gguf<br/>facts + decide + score"]
-            SLORA["style-*.lora.gguf × 8<br/>corporate · aviation · ai · politics<br/>medical · gaming · sports · scifi"]
-        end
-        UI --> PIPE --> LS
-        CONTRACTS -.imported by.-> PIPE
-        BASE --- DLORA
-        BASE --- SLORA
-    end
-    subgraph OFFLINE["☁️ Offline only — Modal (never reaches a player)"]
-        TEACHER["Gemma 4 31B FP8<br/>teacher (vLLM, L40S)"]
-        TRAIN["bf16 LoRA training<br/>(A100, unsloth)"]
-        GATES["gate suite<br/>held-out bench · actor bench ·<br/>e2e self-rollouts + solvability"]
-        TEACHER --> TRAIN --> GATES
-    end
-    HUB["🤗 Hub<br/>base GGUF · 9 adapters · 64 agent traces"]
-    GATES -->|ship only if 9/9 PASS| HUB
-    HUB -->|pulled at startup| LS
-```
+<!-- diagram source: docs/assets/diagrams/architecture.mmd — rendered to PNG (HF blog does not render mermaid) -->
+![One base, many hats: adapters are trained and gated offline on Modal, published to the Hub, then pulled into a free 2-vCPU Space where one resident 1B base wears every hat](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_architecture.png)
 
 At play time exactly one model is resident: **MiniCPM5-1B** (a clean
 `LlamaForCausalLM`), quantized to `Q4_K_M` GGUF, served by a **`llama-server`**
@@ -227,13 +191,6 @@ re-evaluates only the lines added since the last one — on a CPU where prompt
 evaluation runs at 60–80 tokens/second, this is the difference between a per-beat cost
 of one new line and re-eating a 2,600-token transcript (~42 seconds) every single turn.
 
-Why `llama-server` and not the `llama-cpp-python` binding we started with? Because the
-binding made us pay for the same mistake twice: it loaded the base once per adapter
-(two copies in RAM), and its Python-side prefix-reuse had a crash path that forced us
-to ship a "safe mode" that quietly disabled caching after the first fault. The server's
-slot-based cache simply does not have that failure mode. The general lesson — choose
-the infrastructure whose failure modes you can live with, not the one with the nicer
-API — recurs throughout this log.
 
 The numbers that make the free tier work, all measured on the actual 2-vCPU box:
 
@@ -245,29 +202,25 @@ The numbers that make the free tier work, all measured on the actual 2-vCPU box:
 | Director decision (grammar-constrained) | settles in ~80 tokens |
 | Actor line | ~30–50 tokens |
 | Full 10-beat hearing, pre-generated | **~90–120 s** behind a progress bar |
-| Every "Continue" click after that | **instant** |
 
 That first row is why the deployed Space is a **Docker** Space: not for the UI (plain
 Gradio), but because the Dockerfile is the only place you can guarantee `llama.cpp`
-gets compiled from source with `-DGGML_AVX2=ON -DGGML_FMA=ON`. A 30–40× throughput
-swing from compile flags, on identical hardware and identical weights. The build is
-two-staged (compile in a throwaway image, copy one static binary into a slim Python
+gets compiled from source with `-DGGML_AVX2=ON -DGGML_FMA=ON` without hitting a timeout.
+A 30–40× throughput swing from compile flags, on identical hardware and identical weights. 
+The build is two-staged (compile in a throwaway image, copy one static binary into a slim Python
 image), the weights are pulled from the Hub at startup rather than committed, and a
 GitHub Action mirrors `main` to the Space so an ordinary `git push` deploys.
 
-<!-- 📷 IMAGE SLOT: docs/assets/img/jargon_picker.png — the Charges screen: title hero
-     + the 4×2 icon grid of jargon cards (one selected, gold). -->
-![Choosing your smokescreen: the jargon picker](assets/img/jargon_picker.png)
-
 <!-- 📷 IMAGE SLOT: docs/assets/img/loading_bar.png — the "Preparing your hearing"
      card mid-generation ("Staging the hearing — beat 6 of 10…"). -->
-![The whole hearing pre-generates behind a beat-by-beat progress bar](assets/img/loading_bar.png)
+![The whole hearing pre-generates behind a beat-by-beat progress bar](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/loading_bar.png)
 
 One design decision here was reversed by playtesting, and it is worth recording because
 the "smart" version lost. We first shipped *pipelined* generation: show beat 1 the
 moment it exists (~30 s), generate beat N+1 in a background thread while the player
-reads beat N. Elegant, and the per-beat generation (7–8 s) genuinely outran reading
-speed. The player preferred the progress bar: pre-generate the whole hearing up front
+reads beat N. Elegant, and the per-beat generation (7–8 s) could have genuinely outrun reading
+speed but for fast readers it didn't. Some players progressed too quickly and had to wait in 
+between turns, therefore in the end they preferred the progress bar: pre-generate the whole hearing up front
 (~2 minutes, with a beat-by-beat counter), then make every click instant. When the
 total wait is short enough, predictability beats cleverness. The background worker
 survives in the code; the UI now simply waits for it to finish before raising the
@@ -336,35 +289,23 @@ L40S via vLLM on Modal — and never touches a player's machine. The teacher is 
 and unreliable in exactly the ways you would expect, so the pipeline treats it like a
 talented contractor with strict acceptance criteria.
 
-```mermaid
-flowchart TD
-    POOLS["pools.py<br/>66 professions × 3 domain-matched faults<br/>jargon's domain EXCLUDED"]
-    SPEC["seeded case spec<br/>profession · fault · tone · disposition ·<br/>jargon-bank sample"]
-    T["Gemma 4 31B teacher<br/>(vLLM on Modal)"]
-    V{"validators<br/>(same contracts as runtime)"}
-    RETRY["corrective retry<br/>re-prompt WITH the rejection reason"]
-    DS["dataset.jsonl<br/>+ manifest.json<br/>seed · counts · reject histogram ·<br/>teacher ID · SHAPE_VERSION"]
-    TR["train_common.py<br/>REFUSES any manifest whose<br/>SHAPE_VERSION ≠ contracts'"]
-
-    POOLS -->|code samples the truth| SPEC --> T --> V
-    V -->|"beat/speaker mismatch · 3-in-a-row ·<br/>terse stage direction · profession leak"| RETRY --> T
-    V -->|kept &#40;200/200 per style, 298/300 games&#41;| DS --> TR
-```
+<!-- diagram source: docs/assets/diagrams/datagen.mmd — rendered to PNG (HF blog does not render mermaid) -->
+![A 31B teacher under code-enforced acceptance criteria: code samples the truth, the teacher writes and translates, validators sharing the runtime contracts accept or send a corrective retry, and only manifested data reaches training](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_datagen.png)
 
 **Actors** (~14,700 examples). For each of eight styles plus a generic courtroom
-register: the teacher writes complete hearings — given a code-sampled hidden truth, a
-tone, a disposition, and a seeded sample from a curated ~80-term jargon bank — and
-each turn is exploded into one training example *in the exact shape the runtime
-produces*: role+style system prompt; user turn carrying the last public lines, the
-stage direction, the intensity, and the clue text when one is surfaced; assistant turn
-the spoken line. Every example carries a `group_id` tying it to its source transcript
-so the train/validation split can separate at the transcript level.
+register: the teacher writes a complete hearing in plain English — given a code-sampled
+hidden truth, a tone, a disposition, and a seeded sample from a curated ~80-term jargon
+bank — then *translates each line into the target register*. Each translation becomes one
+training example *in the exact shape the runtime produces*: a role+style translator
+system prompt, a user turn carrying only the plain line to rewrite, and the in-style line
+as the answer. Every example carries a `group_id` tying it to its source transcript so
+the train/validation split can separate at the transcript level.
 
 **Director** (4,178 examples). Three tasks mixed into one dataset: writing oblique
 facts (898), per-beat decisions on real game transcripts (2,980, with the `fact_index`
 labels), and plea scoring across seven guess-quality buckets (300). The teacher's
 games are validated turn by turn against the *same* contracts the runtime enforces:
-speaker/beat compatibility, no three-in-a-row, stage directions of at least five
+speaker/beat compatibility, no three-in-a-row, a written line of at least four
 words, no profession token anywhere on a player-visible surface (the leak check is the
 identical function the runtime uses), fact indices in range. The forcing rule is
 applied to the training *targets* too, so the model learns to obey the nudge it will
@@ -386,9 +327,9 @@ those numbers is the educational part:
   prior, re-ran, and got 8/8 first-attempt compliance. When a validator and a strong
   teacher disagree systematically, check the spec before blaming the model.
 - **Eyeballing one sample fixed a quality bug no metric measured.** An early smoke run
-  printed `"stage_direction": "vetoing the rhetorics"` — three words of nothing, which
-  the actor downstream would have had to act on. The prompt now demands a full
-  imperative sentence and the validator rejects terse directions. The very next run
+  printed a director `"line"` of *"vetoing the rhetorics"* — three words of nothing for
+  the actor to translate and the player to read. The prompt now demands a full
+  sentence and the validator rejects terse lines. The very next run
   produced *"Close the distance to apply maximum pressure on the bottom line."* Same
   pipeline, same teacher; the difference between unusable and excellent training data
   was one prompt sentence and one validator line — found by reading, not by metrics.
@@ -438,11 +379,7 @@ answer + terminator** — token-for-token what the server produces at runtime, e
 think block included — and the completion mask is derived by probing the template with
 sentinels rather than hardcoding any string. The audit that prints one fully rendered
 example per run, originally added to check for thought-channel leakage, is what made
-this discoverable at all. (The same session also absorbed a TRL API churn —
-`DataCollatorForCompletionOnlyLM` no longer exists; Unsloth's
-`train_on_responses_only` with probe-derived markers replaced it. First contact with
-real infrastructure found every version assumption we had made; this is what cheap
-smoke tests are for.)
+this discoverable at all. 
 
 ## Part VI — Evaluation: the gauntlet, and the night the game was unwinnable
 
@@ -451,21 +388,8 @@ by a single greedy trajectory, by out-of-distribution prompts, and by gating on 
 validity that the runtime grammar guarantees anyway. The rebuilt evaluation suite is
 designed by those scars, in three layers, each answering a different question.
 
-```mermaid
-flowchart TD
-    A["Layer 1 — held-out bench<br/>did the student learn the teacher?<br/>agreement 0.87 vs self-agreement ceiling 0.64"]
-    B["Layer 2 — actor bench<br/>did each adapter learn its voice?<br/>style lift · own-bank peak · fluency guard"]
-    C["Layer 3 — e2e gate (production stack)<br/>12 self-rollout games · guards live · real adapters"]
-    S{"SOLVABILITY<br/>31B teacher plays the player's exact view —<br/>must land in [30, 85]"}
-    SHIP["🚢 ship"]
-    FIX["iterate: guards → data → DAgger<br/>(in that order)"]
-
-    A --> C
-    B --> C
-    C -->|"8 machinery checks<br/>(leaks 0 · guards ≤2% · repetition ≤1% ·<br/>wrap 100% · facts 100% · scorer sep ≥45)"| S
-    S -->|in band| SHIP
-    S -->|out of band — VETO, even at 8/9| FIX --> C
-```
+<!-- diagram source: docs/assets/diagrams/evaluation.mmd — rendered to PNG (HF blog does not render mermaid) -->
+![The three-layer gate: two learned-behaviour benches feed an end-to-end gate on the production stack, eight machinery checks, and a solvability metric that can veto a ship even at eight-of-nine](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_evaluation.png)
 
 **Layer 1 — Did the student learn the teacher?** A held-out benchmark on a
 disjoint-seed slice of teacher games (390 contexts), base versus LoRA, *without* the
@@ -524,19 +448,8 @@ points, and no amount of additional training toward the *same target* could fix 
 because the target itself was unsolvable. The models had faithfully learned a
 specification that did not contain a winnable game.
 
-```mermaid
-flowchart LR
-    FACT["hidden fact<br/>«no signature on the<br/>waiver was found»"]
-    ACTOR["actor<br/>(aviation style LoRA)"]
-    LINE["spoken line<br/>«the manifest lacks all necessary<br/>flight-signature verification»"]
-    SOLVER1["31B solver, transcript only<br/>🟥 'accountant / embezzlement'<br/>solvability 0/12"]
-    BOARD["📌 evidence board<br/>exhibit shown verbatim<br/>to the PLAYER"]
-    SOLVER2["31B solver, player view<br/>🟩 'tattoo artist / worked without consent'<br/>solvability 31.75, in band"]
-
-    FACT -->|"re-encoded INTO the smokescreen<br/>(intended aesthetic — anchor destroyed)"| ACTOR --> LINE --> SOLVER1
-    FACT ==>|"the fix: clues ALSO reach the player directly"| BOARD ==> SOLVER2
-    LINE -.->|still the entertainment layer| SOLVER2
-```
+<!-- diagram source: docs/assets/diagrams/obliqueness.mmd — rendered to PNG (HF blog does not render mermaid) -->
+![Obliqueness squared: an oblique fact re-encoded into the smokescreen leaves a transcript-only solver with no anchor (solvability 0/12); the fix routes the same clues to the player verbatim on the evidence board (solvability 31.75, in band)](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_obliqueness.png)
 
 The fix was therefore three-part, and only one part touched a model:
 
@@ -556,10 +469,6 @@ The fix was therefore three-part, and only one part touched a model:
 3. **Gate on the player's actual view.** The solver now reads exhibits + hearing,
    because that is what the player reads.
 
-<!-- 📷 IMAGE SLOT: docs/assets/img/verdict_reveal.png — the verdict screen: the big
-     score %, the verdict word, and the two-column "What you heard / The truth" reveal. -->
-![The verdict: what you heard versus what you actually did](assets/img/verdict_reveal.png)
-
 One director regeneration and retrain later (the full chain — data, held-out slice,
 training, labels, benchmark, GGUF conversion, gate — runs unattended in about three
 hours), the gate came back **9/9**: solvability 31.75, 58% exact-profession hits,
@@ -568,6 +477,10 @@ run did flag was our own detector matching the substring "city" inside the word
 *opacity* for a city council clerk — fixed with word-boundary matching and a
 regression test, and a fitting final note: by the end, the only component still
 producing false accusations in our courtroom was the prosecution's own software.
+
+<!-- 📷 IMAGE SLOT: docs/assets/img/verdict_reveal.png — the verdict screen: the big
+     score %, the verdict word, and the two-column "What you heard / The truth" reveal. -->
+![The verdict: what you heard versus what you actually did](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/verdict_reveal.png)
 
 ## Part VII — Ops notes from the trenches
 
@@ -598,13 +511,6 @@ any model is consulted — with a regression test asserting the model is *never
 called* — and the rationale the player sees is the courtroom's own: "the court
 cannot grade silence."
 
-**The standard checklist still applies.** TRL removed an API between our design and
-our first training run; Gradio's prose styles overrode a custom background and
-produced white-on-white text (every color pair in that component is now pinned in
-matched pairs); a Windows console choked on a Unicode checkmark in Modal's output;
-and the development machine ran out of disk during the final verification. None of
-these are interesting. All of them happened in one day. Budget for them.
-
 ## Part VIII — What we would tell ourselves at the start
 
 1. **Code for invariants, models for quality.** The single most load-bearing idea in
@@ -627,7 +533,7 @@ these are interesting. All of them happened in one day. Budget for them.
    model playing the player's exact view, scored deterministically, required to land
    in a band — was the only number that knew. Find your equivalent before your
    benchmarks start agreeing with each other.
-5. **Read the outputs. Then read the data.** The terse stage directions, the
+5. **Read the outputs. Then read the data.** The terse director lines, the
    ungrammatical briefs, the prosecutor/opening "violation" that was actually our
    spec being wrong, the sci-fi adapter failing a checklist while writing better
    technobabble than the checklist — every one was invisible in aggregate metrics
@@ -687,7 +593,8 @@ court, in your own words, what you think you actually did.
 <gradio-app src="https://build-small-hackathon-buzzwordsmisdemeanors.hf.space"></gradio-app>
 
 *Built by Bastien Hottelet (design, ML, engineering), with a classmate learning the
-ropes alongside (and making us explain ourselves, which made everything better), art
+ropes alongside (and making me explain myself, which made everything better), art
 by our third teammate, and Claude Code as the pair programmer. The full revision
 history of this project — including the review that tore it down and the gates it had
 to pass to come back — is in the repository.*
+

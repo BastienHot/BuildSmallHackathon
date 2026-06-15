@@ -10,7 +10,6 @@ player's machine.
 the runtime and every script in this directory. Datagen stamps
 `contracts.SHAPE_VERSION` into a `<name>.manifest.json` next to each dataset, and
 training **refuses** a dataset whose shape version doesn't match the code.
-See `docs/REBUILD_REVIEW.md` for the full design.
 
 ## One-time setup
 
@@ -32,7 +31,7 @@ modal run training/teacher_datagen.py                           # legal_generic 
 modal run training/finetune.py                                  # legal_base, then actor_<style> forks
 modal run training/evaluate.py                                  # style lift + fluency + engagement
 
-# Optional one-off ablation (§6.5): does stage 1 actually help?
+# Optional one-off ablation: does stage 1 actually help?
 modal run training/finetune.py --style corporate --skip-stage1 --no-fork
 
 # --- Director / Game Master (1 multitask LoRA: facts + decide + score) ---
@@ -53,7 +52,7 @@ modal volume get buzzwords-gguf / ./models
 modal run training/e2e_gate.py --n 12
 ```
 
-If the e2e gate fails on sequencing, iterate in this order (REBUILD_REVIEW.md §13.6):
+If the e2e gate fails on sequencing, iterate in this order (guards -> data -> DAgger):
 the deterministic guards already ship; then regenerate/retrain; and only then run the
 DAgger pass — the gate dumps `director_contexts_selfplay.jsonl`, so:
 
@@ -71,17 +70,17 @@ python training/share_trace.py --n 64
 - **Truth is sampled in code, not generated.** Profession + domain-matched fault come
   from `buzzwords/pools.py` with the jargon's domain excluded — the smokescreen and
   profession/fault coherence hold by construction; the director model only writes the
-  oblique facts (REBUILD_REVIEW.md §13.4).
+  oblique facts.
 - **Example shape = runtime shape**, enforced by the shared contracts module: actors
   get the last 1-2 public lines + optional fact + stage direction (never the truth);
   the director gets the stable-prefix gm prompt with the fact_index clue channel.
-- **bf16 LoRA, not QLoRA** (§6.4): zero training-side quant noise; the e2e llama.cpp
+- **bf16 LoRA, not QLoRA**: zero training-side quant noise; the e2e llama.cpp
   gate validates the serving-side Q4_K_M.
-- **Group-wise split + completion-only loss + fixed seed** (§6.1-§6.5), all in
+- **Group-wise split + completion-only loss + fixed seed**, all in
   `train_common.py`; `train_metrics.json` records configs + manifest lineage.
 - **Checkpoint-fork (not resume):** stage 2 loads `legal_base` as *initialization*
   and starts a fresh run — never `resume_from_checkpoint`.
 - **Quantized teacher:** Gemma 4 31B-it FP8 (`RedHatAI/gemma-4-31B-it-FP8-block`) on
   L40S; override with `BW_TEACHER_MODEL` / `BW_TEACHER_QUANT` / `BW_TEACHER_GPU`.
 - **Single teacher / single prompt family is accepted hackathon scope** — note it in
-  the final report (§5.4).
+  the final report.

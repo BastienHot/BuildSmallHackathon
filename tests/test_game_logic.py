@@ -1,6 +1,6 @@
 """Unit tests for the model-free game logic: contracts, pools, guards, pipeline.
 
-Every failure mode from the live-transcript post-mortem (REBUILD_REVIEW.md §13) has a
+Every failure mode from the live-transcript post-mortem has a
 test here proving the deterministic layer makes it unrepresentable. Run: pytest tests/
 """
 
@@ -33,7 +33,7 @@ def test_smokescreen_by_construction():
         for i in range(50):
             prof, fault = pools.sample_case(random.Random(i), style)
             assert pools.PROFESSIONS[prof][0] not in excluded
-            assert fault in pools.PROFESSIONS[prof][1]   # domain-matched fault (§13.4)
+            assert fault in pools.PROFESSIONS[prof][1] # domain-matched fault
 
 
 # ----------------------------------------------------------------- contracts
@@ -44,7 +44,7 @@ def test_grammar_rules_are_single_line():
 
 
 def test_gm_prompt_is_append_only():
-    """Stable-prefix property (§4.2): turn N's prompt must be a prefix of turn N+1's,
+    """Stable-prefix property: turn N's prompt must be a prefix of turn N+1's,
     up to the final status line."""
     facts = ["f0", "f1", "f2"]
     t1 = [("judge", "line one")]
@@ -77,13 +77,13 @@ def test_leak_detection():
 
 # -------------------------------------------------------------------- guards
 def test_guard_prosecutor_cannot_plead():
-    # §13.2: the live transcript had the prosecutor delivering the defense's plea
+    # the live transcript had the prosecutor delivering the defense's plea
     speaker, beat = contracts.guard_speaker("prosecutor", "plea", ["judge"], 1, 10)
     assert (speaker, beat) == ("defense", "plea")
 
 
 def test_guard_no_three_in_a_row():
-    # §13.3: prosecutor x3 consecutive in the live transcript
+    # prosecutor x3 consecutive in the live transcript
     speaker, beat = contracts.guard_speaker(
         "prosecutor", "evidence", ["judge", "prosecutor", "prosecutor"], 3, 10)
     assert speaker != "prosecutor"
@@ -105,7 +105,7 @@ def test_guard_defense_by_midpoint():
 
 def test_forced_fact_guarantees_full_coverage():
     # 4 facts, 10 beats: simulate a GM that NEVER volunteers a fact — the force rule
-    # must still deliver every fact by the end (§13.5).
+    # must still deliver every fact by the end.
     released: set[int] = set()
     for turn in range(10):
         fi = contracts.forced_fact(4, released, turn, 10)
@@ -117,7 +117,7 @@ def test_forced_fact_guarantees_full_coverage():
 
 # ------------------------------------------------------------------ pipeline
 class FakeEngine:
-    """Scripted engine reproducing the §13 degenerate director (prosecutor-only,
+    """Scripted engine reproducing the degenerate director (prosecutor-only,
     plea-by-prosecutor, never volunteers facts) — the guards must still produce a
     well-formed hearing."""
 

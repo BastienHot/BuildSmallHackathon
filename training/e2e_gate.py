@@ -1,10 +1,10 @@
 """END-TO-END gate on SELF-ROLLOUTS: N full games, real llama.cpp + GBNF + REAL actors.
 
-This is the ship/no-ship check (REBUILD_REVIEW.md §10.4). It plays N >= 10 complete
+This is the ship/no-ship check. It plays N >= 10 complete
 games across styles exactly as the app does — sampled truth from buzzwords.pools, the
 director LoRA under grammar, the deterministic guards from buzzwords.contracts, and the
 ACTUAL style-LoRA actors (no stubs) — then aggregates SEQUENCE metrics, not single
-trajectories (§7.1) and not marginals only (§13.6):
+trajectories and not marginals only:
 
   * raw guard-trigger rates (how often the model needed the seatbelt)
   * post-guard speaker shares, max same-speaker run, transition matrix
@@ -12,12 +12,12 @@ trajectories (§7.1) and not marginals only (§13.6):
   * profession leaks in lines/stage directions (must be 0)
   * wrap-within-budget rate + fact coverage (force rule => must be 1.0)
   * scorer calibration on constructed spot-on / unrelated guesses
-  * SOLVABILITY (§7.2, the headline): the Gemma teacher reads each transcript
+  * SOLVABILITY (the headline): the Gemma teacher reads each transcript
     (player view only) and guesses; deterministic bucket scoring; the average must
     land in a band — guessable but not given away.
 
 Also dumps every decide context to director_contexts_selfplay.jsonl — point
-`director_datagen.py --task label --source` at it for the DAgger pass (§13.6).
+`director_datagen.py --task label --source` at it for the DAgger pass.
 
   modal run training/e2e_gate.py --n 12          # full gate (games on CPU, solver on GPU)
   modal run training/e2e_gate.py --n 4 --no-solve   # quick smoke, skip the teacher solver
@@ -45,13 +45,13 @@ TEACHER_GPU = os.getenv("BW_TEACHER_GPU", "L40S")
 GATE = {
     "leaks": lambda m: m["leak_lines"] == 0,                  # one leak ends the game's premise
     "defense_share": lambda m: m["defense_share"] >= 0.20,    # guards guarantee presence; share shows health
-    "max_run": lambda m: m["max_same_speaker_run"] <= 2,      # the §13.3 invariant, post-guard
+    "max_run": lambda m: m["max_same_speaker_run"] <= 2, # the invariant, post-guard
     "guard_rate": lambda m: m["guard_trigger_rate"] <= 0.35,  # seatbelt firing >35% = model not learning sequencing
-    "repetition": lambda m: m["consec_4gram_overlap"] <= 0.15,  # §13.5 echo failure ("your silence" x3)
+    "repetition": lambda m: m["consec_4gram_overlap"] <= 0.15, # echo failure ("your silence" x3)
     "wrap": lambda m: m["wrapped_rate"] >= 0.8,               # games must end on their own
     "facts": lambda m: m["fact_coverage"] >= 0.99,            # force rule => all clues reach the player
-    "score_sep": lambda m: m["score_spot_mean"] - m["score_unrel_mean"] >= 45,  # §7.3 separation
-    "solvability": lambda m: m["solver_mean"] is None or 30 <= m["solver_mean"] <= 85,  # §7.2 band
+    "score_sep": lambda m: m["score_spot_mean"] - m["score_unrel_mean"] >= 45, # separation
+    "solvability": lambda m: m["solver_mean"] is None or 30 <= m["solver_mean"] <= 85, # band
 }
 
 app = modal.App("buzzwords-e2e-gate")
@@ -286,7 +286,7 @@ def publish_traces(games: list[dict], repo: str):
          secrets=[modal.Secret.from_name("huggingface")])
 class Solver:
     """The teacher reads each transcript (player view ONLY — no case file) and guesses;
-    scoring is DETERMINISTIC token overlap, not the learned scorer (§7.2)."""
+    scoring is DETERMINISTIC token overlap, not the learned scorer."""
 
     @modal.enter()
     def load(self):
@@ -298,7 +298,7 @@ class Solver:
     def solve(self, games: list[dict], use_facts: bool = False) -> list[dict]:
         """use_facts=True is the DIAGNOSTIC baseline: solve from the raw oblique facts
         (no jargon layer). If this also fails, the facts don't carry the signal (data
-        problem); if it succeeds while transcripts fail, the actors bury it (§7.2)."""
+        problem); if it succeeds while transcripts fail, the actors bury it."""
         from vllm import SamplingParams
         prompts = []
         for g in games:
@@ -467,5 +467,5 @@ def main(n: int = 12, base_seed: int = 0, no_solve: bool = False, solve_only: bo
         overall = overall and ok
         print(f"  [{'PASS' if ok else 'FAIL'}] {name}")
     verdict = ("PASS — clear to ship" if overall else
-               "FAIL — iterate (REBUILD_REVIEW.md §13.6: guards -> data -> DAgger, in that order)")
+               "FAIL — iterate (guards -> data -> DAgger, in that order)")
     print(f"\nE2E GATE: {verdict}")

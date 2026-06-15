@@ -5,11 +5,15 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Model weights (kept out of git; see docs/ARCHITECTURE.md)
+# Model weights (kept out of git; see docs/FIELD_NOTES.md)
 models/
 *.gguf
 assets/voices/*.wav
 assets/voices/*.mp3
+
+# Large gameplay capture (too big for the repo; not referenced by the docs)
+docs/assets/video/
+*.webm
 
 # Gradio / HF
 .gradio/

@@ -1,6 +1,5 @@
 """Play a POOL of full games with the real models, capture the agent traces, and publish
-them to the Hub (the hackathon's shared-traces deliverable — REBUILD_REVIEW.md §10.6:
-50-100 traces, not one).
+them to the Hub (the hackathon's shared-traces deliverable: 50-100 traces, not one).
 
 Each trace = the Game Master's structured decisions (speaker, beat, fact_index,
 intensity, stage direction, wrap-up — plus whether the deterministic guard remapped it),

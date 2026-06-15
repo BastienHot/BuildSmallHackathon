@@ -2,7 +2,7 @@
 
 One single-stage bf16 LoRA run on the mixed director.jsonl (facts + decide + score),
 sharing config C and all Phase-2 mechanics with the actors via train_common.py.
-(The optional legal_base warm-start path was removed — it was never used; §6.6.)
+(The optional legal_base warm-start path was removed — it was never used.)
 
   modal run training/director_finetune.py
 Gate it with training/director_evaluate.py + training/e2e_gate.py, then convert

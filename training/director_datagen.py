@@ -5,15 +5,15 @@ the EXACT runtime call shapes from buzzwords.contracts (the single source of tru
 
   * facts  -- the director's only authoring job now: the truth (profession + matched
               fault) is SAMPLED IN CODE from buzzwords.pools, both here and at runtime
-              (smokescreen + coherence by construction, REBUILD_REVIEW.md §13.4).
+              (smokescreen + coherence by construction).
   * decide -- per-beat decisions over the FULL append-only transcript, including the
-              fact_index clue channel (§13.5). When the runtime forced-fact rule would
+              fact_index clue channel. When the runtime forced-fact rule would
               fire, the training target's fact_index is rewritten to comply — the model
               learns to obey the force nudge it will see at inference.
   * score  -- grade seeded-quality guesses (0-100 + rationale).
   * label  -- teacher labels decisions for EXISTING decide contexts from a jsonl: used
-              for the teacher self-agreement baseline (§7.4) and, pointed at student
-              self-rollout contexts, as the DAgger pass (§13.6).
+              for the teacher self-agreement baseline and, pointed at student
+              self-rollout contexts, as the DAgger pass.
 
 Every run writes a manifest (seed, counts, rejects, SHAPE_VERSION) and stamps group_id.
 

@@ -3,9 +3,9 @@
   1. ``new_case``        -- CODE samples profession + domain-matched fault (pools), the
      director model writes the oblique facts (leak-checked, retried, with a fallback).
   2. ``start_generation`` -- a background worker generates beats while the player reads
-     (no pre-generated games; REBUILD_REVIEW.md §8.3).
-  3. ``next_turn``       -- one beat: GM decision -> deterministic guards (§13.2-13.3)
-     -> fact scheduling (§13.5) -> actor line with dialogue context.
+     (no pre-generated games).
+  3. ``next_turn``       -- one beat: GM decision -> deterministic guards
+     -> fact scheduling -> actor line with dialogue context.
   4. ``score_guess``     -- the GM grades the plain-English guess.
 
 ``preflight`` reports anything missing so the UI shows a clear message, not a crash.
@@ -55,7 +55,7 @@ def preflight() -> str | None:
 
 # --------------------------------------------------------------- case assembly
 def new_case(jargon_style: str) -> Case:
-    """Sample the truth in code; the model writes only the oblique facts (§13.4)."""
+    """Sample the truth in code; the model writes only the oblique facts."""
     rng = random.Random()
     profession, fault = pools.sample_case(rng, jargon_style)
     facts: list[str] | None = None
@@ -130,7 +130,7 @@ def next_turn(session: GameSession) -> Line | None:
 
 
 def start_generation(session: GameSession) -> threading.Thread:
-    """Generate beats in a background daemon thread while the player reads (§8.3).
+    """Generate beats in a background daemon thread while the player reads.
     Engine calls are already serialized by the engine's own lock. The worker closes
     the hearing early (rather than aborting) if a beat fails with >= 2 lines played."""
     def worker():

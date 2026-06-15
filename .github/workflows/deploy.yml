@@ -1,7 +1,7 @@
 name: Sync to Hugging Face Space
 
 # Mirror this GitHub repo to the HF Space on every push to main. The Space then
-# rebuilds from requirements.txt and pulls model weights at startup (see DEPLOY.md).
+# rebuilds from requirements.txt and pulls model weights at startup.
 on:
   push:
     branches: [main]

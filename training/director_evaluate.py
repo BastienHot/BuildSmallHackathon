@@ -1,12 +1,12 @@
 """Held-out, in-distribution benchmark for the director LoRA (Modal GPU, transformers).
 
-Same recipe as before (REBUILD_REVIEW.md §3.4) on the new contracts shapes: base vs
+Same recipe as before on the new contracts shapes: base vs
 LoRA over a disjoint-seed held-out slice of teacher games, the teacher's own choices
 as reference labels, no grammar (measures learned behavior; runtime GBNF guarantees
 JSON, so json_valid is an informational floor only).
 
 New in the rebuild:
-  * teacher SELF-agreement baseline (§7.4): if director_labels.jsonl exists (made by
+  * teacher SELF-agreement baseline: if director_labels.jsonl exists (made by
     `director_datagen.py --task label --source director_game_heldout.jsonl`), the
     student's agreement is reported NEXT TO how often the resampled teacher agrees
     with itself — the number that makes 0.8 interpretable.
@@ -194,7 +194,7 @@ def evaluate(adapter: str = "director", n_decide: int = 180):
     print(f"held-out decide contexts: {len(dec_sysu)}  teacher speaker ref: "
           f"{ {k: round(v / tot, 2) for k, v in ref.items()} }")
 
-    # ---- teacher SELF-agreement baseline (§7.4), if the labels file exists ----
+    # ---- teacher SELF-agreement baseline, if the labels file exists ----
     self_agree = None
     lpath = f"{DATA}/{LABELS}"
     if os.path.exists(lpath):

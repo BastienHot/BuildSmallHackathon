@@ -45,9 +45,7 @@ Every prompt, grammar, and rule lives in **`buzzwords/contracts.py`** — the si
 source of truth shared verbatim with the training pipeline, so the training
 distribution *is* the inference distribution.
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and
-[`docs/REBUILD_REVIEW.md`](docs/REBUILD_REVIEW.md) for the full design; the LoRAs are
-trained offline on Modal — see [`training/`](training/README.md).
+The LoRAs are trained offline on Modal — see [`training/`](training/README.md).
 
 ## Run locally
 

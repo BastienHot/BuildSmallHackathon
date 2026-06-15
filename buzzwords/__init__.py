@@ -1,6 +1,6 @@
 """Buzzwords & Misdemeanors - a courtroom deduction game built on small models.
 
-See docs/ARCHITECTURE.md + docs/REBUILD_REVIEW.md for the design. Package layout:
+Package layout:
     contracts    - THE single source of truth: grammars, prompts, enums (shared w/ training)
     pools        - curated truths: professions w/ domain tags + matched faults
     config       - settings, model/server paths, required-weights list

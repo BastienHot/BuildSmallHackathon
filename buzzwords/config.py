@@ -3,7 +3,7 @@
 Everything that decides *where* a model lives or *how* the app behaves is here so the
 rest of the code stays runtime-agnostic. The game is 100% CPU through a managed
 `llama-server` subprocess (ONE resident MiniCPM5-1B base; the director and style LoRAs
-are registered once and switched per request by scale — REBUILD_REVIEW.md §10.5).
+are registered once and switched per request by scale).
 If weights or the server binary are missing the app launches and tells the user what
 to fix (see pipeline.preflight) rather than crashing.
 """
@@ -29,7 +29,7 @@ LLAMA_SERVER_BIN = (os.getenv("BW_LLAMA_SERVER")
                     or "/usr/local/bin/llama-server")
 LLAMA_SERVER_PORT = int(os.getenv("BW_LLAMA_PORT", "8089"))
 # Pin threads to the vCPUs actually allocated (cpu-basic = 2). Inside a Space container
-# os.cpu_count() can report the host's cores; oversubscription SLOWS llama.cpp (§8.4).
+# os.cpu_count() can report the host's cores; oversubscription SLOWS llama.cpp.
 N_THREADS = int(os.getenv("BW_THREADS", "2"))
 # Two server slots so the GM and the actor each keep their own warm prompt cache:
 # slot 0 = Game Master (director LoRA), slot 1 = actor (style LoRA or vanilla base).
@@ -54,11 +54,11 @@ REQUIRED_MODELS = [
     ("Director LoRA (Game Master)", DIRECTOR_LORA),
 ]
 
-# Generation budgets — tight caps bound the worst case at ~12 tok/s decode (§4.7).
+# Generation budgets — tight caps bound the worst case at ~12 tok/s decode.
 # decide=200 since SHAPE 3.0: the decision JSON now carries the full spoken line
 # (128 truncated mid-line -> json retry exhausted -> one-beat hearings, 2026-06-12).
 MAX_TOKENS = {"facts": 350, "decide": 200, "act": 120, "score": 96}
-REPEAT_PENALTY = 1.15   # actors only: fights cross-line phrase recycling (§13.5)
+REPEAT_PENALTY = 1.15 # actors only: fights cross-line phrase recycling
 
 # ---------------------------------------------------------------------------
 # Runtime weight download (HF Spaces / fresh machines). buzzwords.weights.ensure_weights()

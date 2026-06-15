@@ -52,7 +52,7 @@ def render_stage(case: Case, line: Line | None, evidence: list[str] | None = Non
                  progress: float | None = None) -> str:
     """The stage plus the EVIDENCE DOCKET: oblique facts surface to the player as they
     are woven into beats. The jargon theater is the entertainment layer; the docket is
-    the solvable puzzle layer (REBUILD_REVIEW.md solvability fix — transcript-only was
+    the solvable puzzle layer (the solvability fix — transcript-only was
     measured unwinnable even for the 31B teacher)."""
     bubble = _bubble(line) if line else ""
     progress_strip = ""

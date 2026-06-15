@@ -1,7 +1,7 @@
 """Gradio UI built as a `gr.Walkthrough`: the game's four phases ARE the steps
 (Charges → The hearing → Your plea → The verdict).
 
-No pre-generated games (REBUILD_REVIEW.md §8.3): the hearing starts as soon as the
+No pre-generated games: the hearing starts as soon as the
 FIRST beat exists, and a background worker keeps generating while the player reads.
 "Continue" is instant when the next beat is ready and briefly shows a deliberation
 card when the player out-reads the model.
