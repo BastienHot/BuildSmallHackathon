@@ -6,7 +6,7 @@ colorTo: red
 sdk: docker
 app_port: 7860
 pinned: false
-short_description: A courtroom deduction game on one 1B model, fully local on CPU
+short_description: Courtroom deduction game on one 1B model, local on CPU
 tags:
   - build-small-hackathon
   - thousand-token-wood
