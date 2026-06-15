@@ -25,6 +25,7 @@ tags:
   - achievement:sharing
   - achievement:fieldnotes
   - sponsor:openbmb
+  - sponsor:modal
 ---
 
 # ⚖️ Buzzwords & Misdemeanors
