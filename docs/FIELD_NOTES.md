@@ -184,10 +184,9 @@ adapter or a prompt on top of it:
   prosecutor, and defense are *the same adapter* with three different system prompts —
   a role is a prompt; a vocabulary is an adapter.
 
-<!-- diagram source: docs/assets/diagrams/architecture.mmd — rendered to PNG (HF blog does not render mermaid) -->
-<p align="center">
-  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_architecture.png" alt="One base, many hats: adapters are trained and gated offline on Modal, published to the Hub, then pulled into a free 2-vCPU Space where one resident 1B base wears every hat" width="780">
-</p>
+The whole path — training and gating offline on Modal, publishing to the Hub, and one
+resident base wearing every hat in the Space — is diagrammed in the appendix at the end
+of this post.
 
 The server holds the base once, registers all nine adapters at startup
 (`--lora-init-without-apply`), and switches them **per request by scale** — no merges,
@@ -609,6 +608,16 @@ court, in your own words, what you think you actually did.
 
 <script type="module" src="https://gradio.s3-us-west-2.amazonaws.com/6.0.1/gradio.js"></script>
 <gradio-app src="https://build-small-hackathon-buzzwordsmisdemeanors.hf.space"></gradio-app>
+
+## Appendix — the full architecture
+
+One base, many hats: adapters are trained and gated offline on Modal, published to the
+Hub, then pulled into a free 2-vCPU Space where one resident 1B base wears every hat.
+
+<!-- diagram source: docs/assets/diagrams/architecture.mmd — rendered to PNG (HF blog does not render mermaid) -->
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_architecture.png" alt="One base, many hats: adapters are trained and gated offline on Modal, published to the Hub, then pulled into a free 2-vCPU Space where one resident 1B base wears every hat" width="860">
+</p>
 
 *Built by Bastien Hottelet (design, ML, engineering), with a classmate learning the
 ropes alongside (and making me explain myself, which made everything better), art
