@@ -31,7 +31,9 @@ the actors. One ~0.8 GB base, nine ~50 MB hats.
 <!-- 📷 IMAGE SLOT: docs/assets/img/hero_hearing.png — the hearing screen mid-game:
      courtroom backdrop, a prosecutor speech bubble, and 2-3 exhibits pinned on the
      evidence board below. This is THE shot; take it in the aviation court. -->
-![The hearing: jargon theater above, the evidence board below](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/hero_hearing.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/hero_hearing.png" alt="The hearing: jargon theater above, the evidence board below" width="460">
+</p>
 
 This document is the project's field log, written the way we wish more project
 write-ups were written: not the sanitized version, but the actual sequence — including
@@ -152,7 +154,9 @@ on a distribution the game never produces.
 
 <!-- 📷 IMAGE SLOT: docs/assets/img/jargon_picker.png — the Charges screen: title hero
      + the 4×2 icon grid of jargon cards (one selected, gold). -->
-![Choosing your smokescreen: the jargon picker](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/jargon_picker.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/jargon_picker.png" alt="Choosing your smokescreen: the jargon picker" width="480">
+</p>
 
 With those pieces in place — the director, the actors, and the code that fences them in —
 here is one whole game end to end: pick a jargon, the hearing pre-generates behind a
@@ -160,12 +164,11 @@ progress bar, then the player steps through the cached beats and enters a plea. 
 right-hand boxes (director and actors) are the same 1B base wearing different hats.
 
 <!-- diagram source: docs/assets/diagrams/interactions.mmd — rendered to PNG (HF blog does not render mermaid) -->
-![Sequence diagram: one game, from jargon pick to verdict](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_interactions.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_interactions.png" alt="Sequence diagram: one game, from jargon pick to verdict" width="760">
+</p>
 
 ## Part II — One base, many hats: the architecture
-
-<!-- diagram source: docs/assets/diagrams/architecture.mmd — rendered to PNG (HF blog does not render mermaid) -->
-![One base, many hats: adapters are trained and gated offline on Modal, published to the Hub, then pulled into a free 2-vCPU Space where one resident 1B base wears every hat](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_architecture.png)
 
 At play time exactly one model is resident: **MiniCPM5-1B** (a clean
 `LlamaForCausalLM`), quantized to `Q4_K_M` GGUF, served by a **`llama-server`**
@@ -180,6 +183,11 @@ adapter or a prompt on top of it:
 - **The actors** are the base + one LoRA per jargon style (eight of them). Judge,
   prosecutor, and defense are *the same adapter* with three different system prompts —
   a role is a prompt; a vocabulary is an adapter.
+
+<!-- diagram source: docs/assets/diagrams/architecture.mmd — rendered to PNG (HF blog does not render mermaid) -->
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_architecture.png" alt="One base, many hats: adapters are trained and gated offline on Modal, published to the Hub, then pulled into a free 2-vCPU Space where one resident 1B base wears every hat" width="780">
+</p>
 
 The server holds the base once, registers all nine adapters at startup
 (`--lora-init-without-apply`), and switches them **per request by scale** — no merges,
@@ -213,7 +221,9 @@ GitHub Action mirrors `main` to the Space so an ordinary `git push` deploys.
 
 <!-- 📷 IMAGE SLOT: docs/assets/img/loading_bar.png — the "Preparing your hearing"
      card mid-generation ("Staging the hearing — beat 6 of 10…"). -->
-![The whole hearing pre-generates behind a beat-by-beat progress bar](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/loading_bar.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/loading_bar.png" alt="The whole hearing pre-generates behind a beat-by-beat progress bar" width="540">
+</p>
 
 One design decision here was reversed by playtesting, and it is worth recording because
 the "smart" version lost. We first shipped *pipelined* generation: show beat 1 the
@@ -290,7 +300,9 @@ and unreliable in exactly the ways you would expect, so the pipeline treats it l
 talented contractor with strict acceptance criteria.
 
 <!-- diagram source: docs/assets/diagrams/datagen.mmd — rendered to PNG (HF blog does not render mermaid) -->
-![A 31B teacher under code-enforced acceptance criteria: code samples the truth, the teacher writes and translates, validators sharing the runtime contracts accept or send a corrective retry, and only manifested data reaches training](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_datagen.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_datagen.png" alt="A 31B teacher under code-enforced acceptance criteria: code samples the truth, the teacher writes and translates, validators sharing the runtime contracts accept or send a corrective retry, and only manifested data reaches training" width="820">
+</p>
 
 **Actors** (~14,700 examples). For each of eight styles plus a generic courtroom
 register: the teacher writes a complete hearing in plain English — given a code-sampled
@@ -389,7 +401,9 @@ validity that the runtime grammar guarantees anyway. The rebuilt evaluation suit
 designed by those scars, in three layers, each answering a different question.
 
 <!-- diagram source: docs/assets/diagrams/evaluation.mmd — rendered to PNG (HF blog does not render mermaid) -->
-![The three-layer gate: two learned-behaviour benches feed an end-to-end gate on the production stack, eight machinery checks, and a solvability metric that can veto a ship even at eight-of-nine](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_evaluation.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_evaluation.png" alt="The three-layer gate: two learned-behaviour benches feed an end-to-end gate on the production stack, eight machinery checks, and a solvability metric that can veto a ship even at eight-of-nine" width="820">
+</p>
 
 **Layer 1 — Did the student learn the teacher?** A held-out benchmark on a
 disjoint-seed slice of teacher games (390 contexts), base versus LoRA, *without* the
@@ -449,7 +463,9 @@ because the target itself was unsolvable. The models had faithfully learned a
 specification that did not contain a winnable game.
 
 <!-- diagram source: docs/assets/diagrams/obliqueness.mmd — rendered to PNG (HF blog does not render mermaid) -->
-![Obliqueness squared: an oblique fact re-encoded into the smokescreen leaves a transcript-only solver with no anchor (solvability 0/12); the fix routes the same clues to the player verbatim on the evidence board (solvability 31.75, in band)](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_obliqueness.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_obliqueness.png" alt="Obliqueness squared: an oblique fact re-encoded into the smokescreen leaves a transcript-only solver with no anchor (solvability 0/12); the fix routes the same clues to the player verbatim on the evidence board (solvability 31.75, in band)" width="800">
+</p>
 
 The fix was therefore three-part, and only one part touched a model:
 
@@ -480,7 +496,9 @@ producing false accusations in our courtroom was the prosecution's own software.
 
 <!-- 📷 IMAGE SLOT: docs/assets/img/verdict_reveal.png — the verdict screen: the big
      score %, the verdict word, and the two-column "What you heard / The truth" reveal. -->
-![The verdict: what you heard versus what you actually did](https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/verdict_reveal.png)
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/verdict_reveal.png" alt="The verdict: what you heard versus what you actually did" width="380">
+</p>
 
 ## Part VII — Ops notes from the trenches
 
