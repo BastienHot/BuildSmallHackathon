@@ -10,22 +10,21 @@ short_description: Courtroom deduction game on one 1B model, local on CPU
 tags:
   - build-small-hackathon
   - thousand-token-wood
-  - track:thousand-token-wood
-  - track:wood
   - off-the-grid
   - well-tuned
   - off-brand
   - llama-champion
   - sharing-is-caring
   - field-notes
+  - track:wood
+  - sponsor:openbmb
+  - sponsor:modal
   - achievement:offgrid
   - achievement:welltuned
   - achievement:offbrand
   - achievement:llama
   - achievement:sharing
   - achievement:fieldnotes
-  - sponsor:openbmb
-  - sponsor:modal
 ---
 
 # ⚖️ Buzzwords & Misdemeanors
