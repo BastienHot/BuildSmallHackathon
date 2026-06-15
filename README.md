@@ -6,6 +6,15 @@ colorTo: red
 sdk: docker
 app_port: 7860
 pinned: false
+short_description: A courtroom deduction game on one 1B model, fully local on CPU
+tags:
+  - thousand-token-wood
+  - local-first
+  - fine-tuned
+  - custom-ui
+  - llama-cpp
+  - open-trace
+  - tentative
 ---
 
 # ⚖️ Buzzwords & Misdemeanors
@@ -17,6 +26,40 @@ guess your **real profession and the charge against you**. A model scores you 0�
 reveals the hidden truth.
 
 Built for the Hugging Face **Build Small** hackathon — small models only, fully off-grid.
+
+## What this is (hackathon submission)
+
+**Track — 🍄 Thousand Token Wood.** A delightful, AI-native game: a whole courtroom
+hearing is improvised by one ~1B model, and the fun *is* the model doing the work — it
+directs the trial, acts every role in dense jargon, drops the clues, and grades your plea.
+
+**The idea.** You pick a jargon (aviation, medical, corporate…) that becomes a
+*smokescreen*; the court buries your real (unrelated) profession and charge under it.
+You read past the buzzwords and the evidence board, then plead in plain English. A model
+scores you and the truth is revealed.
+
+**The tech.** One **MiniCPM5-1B** base in 4-bit GGUF, served by a single
+**`llama-server`** (llama.cpp, AVX2) on **pure CPU** — a free `cpu-basic` Space, no GPU.
+It wears small LoRA adapters we fine-tuned and published: one distilled *director* and
+one per jargon *style*. Code (GBNF grammars + deterministic guards in
+`buzzwords/contracts.py`) enforces the rules; the models provide the flavor.
+
+**Merit badges we're going for:**
+
+| Badge | Why we qualify |
+|---|---|
+| 🔌 **Local-first** | No cloud APIs — the whole game runs on CPU in the Space. |
+| 🎯 **Fine-tuned** | Our own LoRAs, published on the Hub (director + 8 styles). |
+| 🎨 **Custom UI** | A hand-built courtroom front-end, well past the default Gradio look. |
+| 🦙 **llama.cpp** | Every token runs through a `llama-server` (llama.cpp) runtime. |
+| 📡 **Open trace** | 64 full agent traces published as a dataset. |
+| 📓 **Field Notes** | A complete build log: [`docs/FIELD_NOTES.md`](docs/FIELD_NOTES.md). |
+
+**Links** — Blog: [`docs/FIELD_NOTES.md`](docs/FIELD_NOTES.md) ·
+Adapters: [director](https://huggingface.co/BastienHot/buzzwords-director-lora),
+[styles](https://huggingface.co/BastienHot/buzzwords-style-loras) ·
+Traces: [dataset](https://huggingface.co/datasets/BastienHot/buzzwords-agent-trace) ·
+Demo video: _<add link>_ · Social post: _<add link>_
 
 ## How it works
 
