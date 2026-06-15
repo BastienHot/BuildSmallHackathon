@@ -71,7 +71,7 @@ Adapters: [director](https://huggingface.co/BastienHot/buzzwords-director-lora),
 [styles](https://huggingface.co/BastienHot/buzzwords-style-loras) ·
 Traces: [dataset](https://huggingface.co/datasets/BastienHot/buzzwords-agent-trace) ·
 Demo video: [YouTube](https://www.youtube.com/watch?v=0eOhEZv1-Nk) ·
-Social post: _<add link>_
+Social post: [LinkedIn](https://www.linkedin.com/posts/hottelet-bastien_buildsmall-smallmodels-llm-share-7472374792478765056-RUkf)
 
 ## How it works
 
