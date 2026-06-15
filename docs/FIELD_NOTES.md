@@ -161,12 +161,9 @@ on a distribution the game never produces.
 With those pieces in place — the director, the actors, and the code that fences them in —
 here is one whole game end to end: pick a jargon, the hearing pre-generates behind a
 progress bar, then the player steps through the cached beats and enters a plea. The two
-right-hand boxes (director and actors) are the same 1B base wearing different hats.
-
-<!-- diagram source: docs/assets/diagrams/interactions.mmd — rendered to PNG (HF blog does not render mermaid) -->
-<p align="center">
-  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_interactions.png" alt="Sequence diagram: one game, from jargon pick to verdict" width="760">
-</p>
+right-hand boxes (director and actors) are the same 1B base wearing different hats. The
+full turn-by-turn sequence — from jargon pick to verdict — is in the appendix at the end
+of this post.
 
 ## Part II — One base, many hats: the architecture
 
@@ -609,10 +606,21 @@ court, in your own words, what you think you actually did.
 <script type="module" src="https://gradio.s3-us-west-2.amazonaws.com/6.0.1/gradio.js"></script>
 <gradio-app src="https://build-small-hackathon-buzzwordsmisdemeanors.hf.space"></gradio-app>
 
-## Appendix — the full architecture
+## Appendix — the full diagrams
 
-One base, many hats: adapters are trained and gated offline on Modal, published to the
-Hub, then pulled into a free 2-vCPU Space where one resident 1B base wears every hat.
+The two whole-system diagrams, collected here so they don't interrupt the read.
+
+**One game, end to end** — from jargon pick to verdict. The two right-hand lanes
+(director and actor) are the same 1B base wearing different hats.
+
+<!-- diagram source: docs/assets/diagrams/interactions.mmd — rendered to PNG (HF blog does not render mermaid) -->
+<p align="center">
+  <img src="https://huggingface.co/spaces/build-small-hackathon/BuzzwordsMisdemeanors/resolve/main/docs/assets/img/diagram_interactions.png" alt="Sequence diagram: one game, from jargon pick to verdict" width="860">
+</p>
+
+**One base, many hats: the architecture** — adapters are trained and gated offline on
+Modal, published to the Hub, then pulled into a free 2-vCPU Space where one resident 1B
+base wears every hat.
 
 <!-- diagram source: docs/assets/diagrams/architecture.mmd — rendered to PNG (HF blog does not render mermaid) -->
 <p align="center">
